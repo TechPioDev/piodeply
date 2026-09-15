@@ -42,6 +42,17 @@ class ProjectEnrollment extends Component
         $this->method = $method;
     }
 
+    /** @return list<array{label: string, url: ?string}> */
+    private function breadcrumb(): array
+    {
+        $user = auth()->user();
+
+        return [
+            ['label' => $this->project->client->company_name, 'url' => $user->can('clients.view') ? route('clients.index') : null],
+            ['label' => $this->project->name, 'url' => null],
+        ];
+    }
+
     /**
      * Issues an additional key for this project. Existing keys — and every
      * machine enrolled with them — keep working untouched.
@@ -78,6 +89,7 @@ class ProjectEnrollment extends Component
         $method = array_key_exists($this->method, $all) ? $this->method : 'gpo';
 
         return view('livewire.projects.project-enrollment', [
+            'breadcrumb'  => $this->breadcrumb(),
             'methods'     => $all,
             'current'     => $all[$method],
             'selected'    => $method,

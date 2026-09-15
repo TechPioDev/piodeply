@@ -209,6 +209,25 @@ class ComputerShow extends Component
         return $checks;
     }
 
+    /**
+     * A staff user without list access to Clients/Projects still orients
+     * fine by the plain-text label; only a link they could actually follow
+     * (without a 403) is ever rendered as one.
+     *
+     * @return list<array{label: string, url: ?string}>
+     */
+    private function breadcrumb(): array
+    {
+        $client = $this->computer->project->client;
+        $user = auth()->user();
+
+        return [
+            ['label' => $client->company_name, 'url' => $user->can('clients.view') ? route('clients.index') : null],
+            ['label' => $this->computer->project->name, 'url' => $user->can('projects.view') ? route('projects.index') : null],
+            ['label' => $this->computer->hostname, 'url' => null],
+        ];
+    }
+
     public function render()
     {
         $jobs = DeploymentJob::where('computer_id', $this->computer->id);
@@ -261,6 +280,7 @@ class ComputerShow extends Component
         );
 
         return view('livewire.computers.computer-show', [
+            'breadcrumb' => $this->breadcrumb(),
             'health' => $this->healthChecks(),
             'browsers' => $browsers,
             'readinessIssues' => app(\App\Services\ReadinessService::class)->issues($this->computer),
