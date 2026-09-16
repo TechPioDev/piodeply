@@ -1,6 +1,5 @@
 <div>
     <x-slot name="header">
-        <x-breadcrumb :items="$breadcrumb" />
         <h2 class="font-semibold text-xl text-slate-800 leading-tight">
             {{ __('Enrol machines') }}
             <span class="text-slate-400 font-normal">— {{ $project->name }}</span>

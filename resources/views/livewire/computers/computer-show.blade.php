@@ -1,6 +1,5 @@
 <div>
     <x-slot name="header">
-        <x-breadcrumb :items="$breadcrumb" />
         <div class="flex items-center justify-between">
             <h2 class="font-semibold text-xl text-slate-900 leading-tight">
                 {{ $computer->hostname }}
