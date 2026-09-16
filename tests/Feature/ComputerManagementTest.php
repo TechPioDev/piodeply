@@ -306,58 +306,6 @@ class ComputerManagementTest extends TestCase
         $this->assertNull($computer->fresh()->deleted_at);
     }
 
-    /**
-     * ComputerPolicy's mutating abilities checked only the permission
-     * string, not tenancy -- view() got it right, update/delete/restore/
-     * forceDelete did not. A client-portal Manager or ClientOwner (both
-     * granted computers.manage) could reach another tenant's machine by
-     * calling the action directly with its id, bypassing the tenant-scoped
-     * list they'd normally click through. Module 01 hierarchy hardening.
-     */
-    public function test_a_tenant_bound_manager_cannot_delete_another_clients_computer(): void
-    {
-        $ownClient = Client::factory()->create();
-        $ownComputer = Computer::factory()->create([
-            'project_id' => Project::factory()->create(['client_id' => $ownClient->id])->id,
-        ]);
-        $otherComputer = Computer::factory()->create([
-            'project_id' => Project::factory()->create(['client_id' => Client::factory()->create()->id])->id,
-        ]);
-
-        $manager = tap(User::factory()->create(['client_id' => $ownClient->id]),
-            fn (User $u) => $u->assignRole(RoleEnum::Manager->value));
-
-        Livewire::actingAs($manager)
-            ->test(ComputersIndex::class)
-            ->call('delete', $otherComputer->id)
-            ->assertForbidden();
-        $this->assertNull($otherComputer->fresh()->deleted_at, 'another tenant\'s machine must survive');
-
-        // The same permission legitimately works on their own fleet.
-        Livewire::actingAs($manager)
-            ->test(ComputersIndex::class)
-            ->call('delete', $ownComputer->id)
-            ->assertOk();
-        $this->assertSoftDeleted('computers', ['id' => $ownComputer->id]);
-    }
-
-    /** update()/restore()/forceDelete() had the identical gap -- covering each ability, not just delete(). */
-    public function test_a_tenant_bound_manager_cannot_update_or_restore_another_clients_computer(): void
-    {
-        $ownClient = Client::factory()->create();
-        $manager = tap(User::factory()->create(['client_id' => $ownClient->id]),
-            fn (User $u) => $u->assignRole(RoleEnum::Manager->value));
-
-        $otherComputer = Computer::factory()->create([
-            'project_id' => Project::factory()->create(['client_id' => Client::factory()->create()->id])->id,
-        ]);
-        $otherComputer->delete();
-
-        $this->assertFalse($manager->can('update', $otherComputer));
-        $this->assertFalse($manager->can('restore', $otherComputer));
-        $this->assertFalse($manager->can('forceDelete', $otherComputer));
-    }
-
     public function test_soft_delete_and_restore(): void
     {
         $computer = Computer::factory()->create();

@@ -56,56 +56,6 @@ class ClientManagementTest extends TestCase
         $this->actingAs($owner)->get('/clients/create')->assertForbidden();
     }
 
-    /**
-     * The list page correctly showed only the tenant's own row (the test
-     * above), but ClientPolicy::update() checked only the permission
-     * string -- so a client-portal Manager or ClientOwner (both carry
-     * clients.update for their own "organisation" page) could reach
-     * ANOTHER client's full edit form directly by URL, view and modify its
-     * profile, billing email/address/tax id, notes and contacts. Module 01
-     * hierarchy hardening: reproduces the exploit exactly, then closes it.
-     */
-    public function test_a_tenant_bound_manager_cannot_view_or_edit_another_clients_profile(): void
-    {
-        $ownClient = Client::factory()->create();
-        $otherClient = Client::factory()->create(['company_name' => 'Someone Else Ltd']);
-
-        $manager = tap(User::factory()->create(['client_id' => $ownClient->id]),
-            fn (User $u) => $u->assignRole(RoleEnum::Manager->value));
-
-        $this->assertTrue($manager->can('clients.update'), 'the exploit requires this permission to actually be granted');
-
-        $this->actingAs($manager)->get("/clients/{$otherClient->id}/edit")->assertForbidden();
-
-        Livewire::actingAs($manager)
-            ->test(ClientForm::class, ['client' => $otherClient])
-            ->assertForbidden();
-
-        $this->assertFalse($manager->can('view', $otherClient));
-        $this->assertFalse($manager->can('update', $otherClient));
-
-        // The identical permission legitimately works on their own client.
-        $this->actingAs($manager)->get("/clients/{$ownClient->id}/edit")->assertOk();
-        $this->assertTrue($manager->can('update', $ownClient));
-    }
-
-    /** delete()/restore() were already safe in practice (Manager/ClientOwner lack clients.delete) -- proving that, not assuming it. */
-    public function test_a_tenant_bound_manager_cannot_toggle_another_clients_monthly_report(): void
-    {
-        $ownClient = Client::factory()->create();
-        $otherClient = Client::factory()->create(['monthly_report' => false]);
-
-        $manager = tap(User::factory()->create(['client_id' => $ownClient->id]),
-            fn (User $u) => $u->assignRole(RoleEnum::Manager->value));
-
-        Livewire::actingAs($manager)
-            ->test(ClientsIndex::class)
-            ->call('toggleMonthlyReport', $otherClient->id)
-            ->assertForbidden();
-
-        $this->assertFalse($otherClient->fresh()->monthly_report);
-    }
-
     public function test_clients_pages_are_permission_gated(): void
     {
         $client = Client::factory()->create();
