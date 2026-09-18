@@ -148,7 +148,39 @@ class SignupFlowTest extends TestCase
         $this->assertTrue($owner->hasRole(RoleEnum::ClientOwner->value), 'signup owners are Client Owners, not staff Managers');
         $this->assertTrue(Hash::check('Owner-pass-123', $owner->password), 'they log in with the password they chose at signup');
 
-        Mail::assertSent(AccountApprovedMail::class, fn ($mail) => $mail->hasTo('owner@newclient.example'));
+        // queue(), not send(): a synchronous send() 500s the whole approval
+        // on any SMTP hiccup, even though the account above already
+        // committed. assertQueued (not assertSent) is what proves this.
+        Mail::assertQueued(AccountApprovedMail::class, fn ($mail) => $mail->hasTo('owner@newclient.example'));
+    }
+
+    /**
+     * Reproduces the production incident directly: SignupApprovalService
+     * used to call Mail::send(), so a real SMTP rejection (a sender address
+     * Hostinger wouldn't accept) threw an uncaught exception straight out of
+     * the Livewire action and 500'd the page -- after the DB transaction had
+     * already committed the client and owner. The admin saw a server error
+     * with no idea the account existed; the new owner never got their
+     * "account is ready" email at all. Pinning the exact call (queue(), not
+     * send()) is what catches a regression back to the crashing path -- a
+     * fake mailer can't reproduce the SMTP failure itself, since it never
+     * talks to a real transport either way.
+     */
+    public function test_approval_hands_the_mail_to_the_queue_not_a_synchronous_send(): void
+    {
+        Mail::shouldReceive('to')->once()->with('owner@newclient.example')->andReturnSelf();
+        Mail::shouldReceive('queue')->once()->with(\Mockery::type(AccountApprovedMail::class));
+        Mail::shouldNotReceive('send');
+
+        $signup = Signup::factory()->paid()->create([
+            'email' => 'owner@newclient.example', 'company_name' => 'New Client GmbH',
+            'password_hash' => Hash::make('Owner-pass-123'),
+        ]);
+
+        app(SignupApprovalService::class)->approve($signup, $this->admin());
+
+        $this->assertSame(Signup::STATUS_APPROVED, $signup->fresh()->status);
+        $this->assertNotNull(User::where('email', 'owner@newclient.example')->first(), 'the account is created regardless of mail delivery');
     }
 
     public function test_the_approved_owner_can_log_in_and_is_tenant_scoped(): void

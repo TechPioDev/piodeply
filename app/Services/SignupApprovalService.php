@@ -102,8 +102,12 @@ class SignupApprovalService
         });
 
         // Outside the transaction: mail failure must not roll back the
-        // account. The mailer queues/retries on its own.
-        Mail::to($signup->email)->send(new AccountApprovedMail($signup));
+        // account. queue() (not send()) is what actually hands this to the
+        // worker to retry on its own -- a synchronous send() here means one
+        // SMTP hiccup 500s the whole approval, even though the account was
+        // already committed above, leaving the admin unsure it worked and
+        // the new owner never told their account exists.
+        Mail::to($signup->email)->queue(new AccountApprovedMail($signup));
 
         return $owner;
     }
