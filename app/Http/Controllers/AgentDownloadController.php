@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\ProjectStatus;
 use App\Models\Project;
+use App\Services\EnrollmentScriptService;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -25,12 +26,12 @@ class AgentDownloadController extends Controller
         $binaryUrl = route('agent.download.binary', $project->download_token);
         $hasBundle = Storage::disk('local')->exists(self::BUNDLE_PATH);
 
-        $script = view('agent.install-script', [
+        $script = EnrollmentScriptService::stripBom(view('agent.install-script', [
             'project'   => $project,
             'serverUrl' => $serverUrl,
             'binaryUrl' => $binaryUrl,
             'hasBundle' => $hasBundle,
-        ])->render();
+        ])->render());
 
         return response($script, 200, [
             'Content-Type'        => 'text/plain; charset=UTF-8',

@@ -320,6 +320,89 @@ class ProjectEnrollmentTest extends TestCase
     }
 
     /**
+     * The Visual C++ redistributable download+install used to run on every
+     * single enrollment, unconditionally -- a ~15-25MB fetch and a minute or
+     * more of installer overhead, even on the (typical) machine where winget
+     * already works and nothing needed repairing at all. It is only there to
+     * fix winget when winget is actually broken, so it must appear only
+     * inside that repair branch, checked after Test-WingetWorks -- never
+     * ahead of it.
+     */
+    public function test_the_vc_runtime_download_only_runs_when_winget_is_actually_broken(): void
+    {
+        $script = view('agent.install-script', [
+            'project'   => $this->project,
+            'serverUrl' => 'https://piodeploy.com',
+            'binaryUrl' => 'https://piodeploy.com/download/agent/x/binary',
+            'hasBundle' => true,
+        ])->render();
+
+        $wingetCheckPos = strpos($script, 'if (Test-WingetWorks)');
+        $vcDownloadPos = strpos($script, "Invoke-WebRequest -Uri 'https://aka.ms/vs/17/release/vc_redist.x64.exe'");
+
+        $this->assertNotFalse($wingetCheckPos);
+        $this->assertNotFalse($vcDownloadPos);
+        $this->assertGreaterThan($wingetCheckPos, $vcDownloadPos, 'the VC++ runtime must only be fetched after winget has already proven broken, not unconditionally');
+    }
+
+    /**
+     * The agent is a framework-dependent .NET 8 Worker Service (no
+     * SelfContained/RuntimeIdentifier in the csproj), so a machine without
+     * the .NET 8 Runtime already on it cannot start the service at all --
+     * and nothing before Start-Service would have surfaced that. Checked
+     * first, like winget, so the common case (already present) costs one
+     * fast command rather than a needless download.
+     */
+    public function test_the_dotnet_runtime_is_checked_and_installed_if_missing(): void
+    {
+        $script = view('agent.install-script', [
+            'project'   => $this->project,
+            'serverUrl' => 'https://piodeploy.com',
+            'binaryUrl' => 'https://piodeploy.com/download/agent/x/binary',
+            'hasBundle' => true,
+        ])->render();
+
+        $this->assertStringContainsString('Test-DotNetRuntimeWorks', $script);
+        $this->assertStringContainsString('Microsoft\.NETCore\.App 8\.', $script);
+        $this->assertStringContainsString('https://aka.ms/dotnet/8.0/dotnet-runtime-win-x64.exe', $script);
+
+        // Checked before the service is created, or a missing runtime is
+        // discovered only when Start-Service already has nothing to start.
+        $runtimeCheckPos = strpos($script, 'Test-DotNetRuntimeWorks');
+        $serviceCreatePos = strpos($script, 'New-Service -Name $serviceName');
+        $this->assertNotFalse($runtimeCheckPos);
+        $this->assertNotFalse($serviceCreatePos);
+        $this->assertLessThan($serviceCreatePos, $runtimeCheckPos, 'the runtime must be ensured before the service is created');
+    }
+
+    /**
+     * A UTF-8 BOM once sat at the start of install-script.blade.php (an
+     * editor artefact). Every enrolment path downloads this exact response
+     * and feeds it straight into [scriptblock]::Create() -- with the BOM
+     * present, PowerShell stops recognising #Requires and param() at all,
+     * runs both as bare commands, and carries on with $ApiKey left empty:
+     * the agent installs and the service starts, but it can never
+     * authenticate, with nothing loud enough in the transcript to explain
+     * why. Reproduced locally against a real PowerShell before this fix.
+     * trim() does not catch this -- it is three raw bytes, not whitespace --
+     * so the guard has to be a byte-level check on the actual response.
+     */
+    public function test_the_downloaded_install_script_never_starts_with_a_byte_order_mark(): void
+    {
+        $response = $this->get(route('agent.download', $this->project->download_token));
+
+        $response->assertOk();
+        $this->assertNotSame("\xEF\xBB\xBF", substr($response->getContent(), 0, 3), 'a leading BOM breaks #Requires/param() parsing in every install method');
+        $this->assertStringStartsWith('#Requires -RunAsAdministrator', $response->getContent());
+    }
+
+    public function test_enrollment_script_service_strips_a_leading_bom_defensively(): void
+    {
+        $this->assertSame('#Requires -RunAsAdministrator', EnrollmentScriptService::stripBom("\xEF\xBB\xBF#Requires -RunAsAdministrator"));
+        $this->assertSame('#Requires -RunAsAdministrator', EnrollmentScriptService::stripBom('#Requires -RunAsAdministrator'), 'a no-op when there is nothing to strip');
+    }
+
+    /**
      * Every method is rendered once and the tabs switch in the browser.
      * Round-tripping to the server for a presentational tab is what disturbed
      * the Alpine state holding the API key — the script kept its placeholder

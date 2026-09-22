@@ -75,14 +75,33 @@ class EnrollmentScriptService
      */
     private function render(string $method, Project $project, ?string $apiKey): string
     {
-        return trim(view("agent.enrollment.{$method}", [
+        $rendered = view("agent.enrollment.{$method}", [
             'project'    => $project,
             'name'       => $this->comment($project->name),
             'company'    => $this->comment($project->client->company_name),
             'apiKey'     => $this->key($apiKey),
             'scriptUrl'  => route('agent.download', $project->download_token),
             'minVersion' => self::CURRENT_AGENT_VERSION,
-        ])->render());
+        ])->render();
+
+        return trim(self::stripBom($rendered));
+    }
+
+    /**
+     * A UTF-8 BOM (an editor artefact, not something anyone writes on
+     * purpose) silently breaks every script this service renders: fed into
+     * [scriptblock]::Create() -- how every enrollment path (GPO, Intune,
+     * RMM, single-machine) runs the downloaded installer -- it stops
+     * #Requires and param() from being recognised at all. PowerShell then
+     * runs both as bare commands, logs two harmless-looking errors, and
+     * carries on with $ApiKey left empty for the rest of the script: the
+     * agent installs, the service starts, and it can never authenticate --
+     * with nothing in the transcript loud enough to explain why. trim()
+     * does not touch this; it is three raw bytes, not whitespace.
+     */
+    public static function stripBom(string $text): string
+    {
+        return str_starts_with($text, "\xEF\xBB\xBF") ? substr($text, 3) : $text;
     }
 
     /**

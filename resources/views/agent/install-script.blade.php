@@ -1,4 +1,4 @@
-﻿#Requires -RunAsAdministrator
+#Requires -RunAsAdministrator
 <#
   PioDeploy agent installer - {{ $project->name }} ({{ $project->client->company_name }})
   Generated {{ now()->toDateString() }} by {{ config('app.name') }}.
@@ -70,27 +70,34 @@ function Test-WingetWorks {
     try { & $exe --version *> $null; return ($LASTEXITCODE -eq 0) } catch { return $false }
 }
 
-# 5a. Visual C++ desktop runtime. Many app installers (Chrome) - and winget
-#     itself - fail to launch without it: exit -1073741515 / 0xC0000135
-#     (STATUS_DLL_NOT_FOUND). The redist is idempotent (no-ops when current).
-try {
-    Write-Host 'Ensuring Visual C++ runtime...'
-    $vc = Join-Path $env:TEMP 'vc_redist.x64.exe'
-    Invoke-WebRequest -Uri 'https://aka.ms/vs/17/release/vc_redist.x64.exe' -OutFile $vc -UseBasicParsing
-    $vcProc = Start-Process -FilePath $vc -ArgumentList '/install', '/quiet', '/norestart' -Wait -PassThru
-    Remove-Item $vc -Force -ErrorAction SilentlyContinue
-    if ($vcProc.ExitCode -in 0, 1638, 3010) { Write-Host 'Visual C++ runtime present.' }
-    else { Write-Warning "VC++ runtime installer returned $($vcProc.ExitCode)." }
-} catch {
-    Write-Warning "Could not ensure the Visual C++ runtime: $($_.Exception.Message)"
-}
-
-# 5b. winget for the SYSTEM account. Only repair if it is actually broken.
+# 5a. winget for the SYSTEM account, checked FIRST. Most machines already
+#     have a working winget (it ships with modern Windows 10/11 and updates
+#     itself), so the common case is one fast check and nothing else -- the
+#     VC++ download+install below used to run unconditionally on every single
+#     enrollment, adding a needless ~15-25MB fetch and a minute or more even
+#     when it was a guaranteed no-op. It is only needed to REPAIR a winget
+#     that is actually broken, so it now runs only on that path.
 Write-Host 'Checking winget (Windows Package Manager)...'
 if (Test-WingetWorks) {
     Write-Host 'winget is working.'
 } else {
     Write-Host 'winget is missing or broken for this account; repairing for all users...'
+
+    # Visual C++ desktop runtime. Many app installers (Chrome) - and winget
+    # itself - fail to launch without it: exit -1073741515 / 0xC0000135
+    # (STATUS_DLL_NOT_FOUND). The redist is idempotent (no-ops when current);
+    # only worth fetching now that winget has actually proven broken.
+    try {
+        Write-Host 'Ensuring Visual C++ runtime...'
+        $vc = Join-Path $env:TEMP 'vc_redist.x64.exe'
+        Invoke-WebRequest -Uri 'https://aka.ms/vs/17/release/vc_redist.x64.exe' -OutFile $vc -UseBasicParsing
+        $vcProc = Start-Process -FilePath $vc -ArgumentList '/install', '/quiet', '/norestart' -Wait -PassThru
+        Remove-Item $vc -Force -ErrorAction SilentlyContinue
+        if ($vcProc.ExitCode -in 0, 1638, 3010) { Write-Host 'Visual C++ runtime present.' }
+        else { Write-Warning "VC++ runtime installer returned $($vcProc.ExitCode)." }
+    } catch {
+        Write-Warning "Could not ensure the Visual C++ runtime: $($_.Exception.Message)"
+    }
 
     # Primary: Microsoft's supported repair, which pulls winget plus its
     # VCLibs / UI.Xaml dependencies and provisions them for every user (the
@@ -129,6 +136,36 @@ if (Test-WingetWorks) {
 
     if (Test-WingetWorks) { Write-Host 'winget repaired.' }
     else { Write-Warning 'winget could not be made ready; the agent will still run and the portal will flag this machine.' }
+}
+
+# 5c. .NET 8 Runtime. The agent is a framework-dependent .NET 8 Worker
+#     Service, so it needs this present system-wide or the service fails to
+#     start -- silently, from this script's point of view, since a process
+#     that cannot find its runtime exits before Start-Service below can
+#     report anything useful. Checked first so a machine that already has it
+#     (most current ones do) pays nothing beyond one fast command.
+function Test-DotNetRuntimeWorks {
+    $dotnet = Get-Command dotnet.exe -ErrorAction SilentlyContinue
+    if (-not $dotnet) { return $false }
+    try { return ((& $dotnet.Source --list-runtimes 2>$null) -match '^Microsoft\.NETCore\.App 8\.').Count -gt 0 }
+    catch { return $false }
+}
+
+Write-Host 'Checking .NET 8 Runtime...'
+if (Test-DotNetRuntimeWorks) {
+    Write-Host '.NET 8 Runtime is present.'
+} else {
+    Write-Host '.NET 8 Runtime missing; installing...'
+    try {
+        $dotnetInstaller = Join-Path $env:TEMP 'dotnet-runtime-8-x64.exe'
+        Invoke-WebRequest -Uri 'https://aka.ms/dotnet/8.0/dotnet-runtime-win-x64.exe' -OutFile $dotnetInstaller -UseBasicParsing
+        $dotnetProc = Start-Process -FilePath $dotnetInstaller -ArgumentList '/install', '/quiet', '/norestart' -Wait -PassThru
+        Remove-Item $dotnetInstaller -Force -ErrorAction SilentlyContinue
+        if ($dotnetProc.ExitCode -in 0, 3010) { Write-Host '.NET 8 Runtime installed.' }
+        else { Write-Warning ".NET 8 Runtime installer returned $($dotnetProc.ExitCode); the agent service may fail to start." }
+    } catch {
+        Write-Warning "Could not install the .NET 8 Runtime: $($_.Exception.Message). The agent service will likely fail to start until this machine has it."
+    }
 }
 
 # 6. Install + start the service
