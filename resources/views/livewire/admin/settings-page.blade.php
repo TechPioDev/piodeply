@@ -47,8 +47,8 @@
                         <x-label for="policy_term" value="What to call software rules" />
                         <select id="policy_term" wire:model="policy_term"
                                 class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-teal-500 focus:ring-teal-500">
-                            <option value="Automation">Automation (recommended)</option>
-                            <option value="Policy">Policy (RMM standard)</option>
+                            <option value="Policy">Policy (recommended)</option>
+                            <option value="Automation">Automation</option>
                             <option value="Software Rule">Software Rule</option>
                             <option value="Desired State">Desired State</option>
                         </select>

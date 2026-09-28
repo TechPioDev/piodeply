@@ -32,7 +32,7 @@ class SettingsPage extends Component
     /** What the client→machines grouping is called across the UI. */
     public string $project_term = 'Site';
 
-    public string $policy_term = 'Automation';
+    public string $policy_term = 'Policy';
 
     public string $browser_policy_term = 'Browser Control';
 

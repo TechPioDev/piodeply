@@ -24,10 +24,12 @@ class SettingsService
             // prefer Department/Location/Team. Display only — the API, DB
             // and agent keep the word "project" internally.
             'branding.project_term'             => 'Site',
-            // What a software desired-state rule is called. "Automation"
-            // sells what it does; RMM veterans may prefer "Policy".
-            // Display only — code and DB keep "policy".
-            'branding.policy_term'              => 'Automation',
+            // What a software desired-state rule is called. "Automation" is
+            // a rebrand of the exact same feature ("Policy") with no actual
+            // trigger/condition concept behind it, which read as a genuinely
+            // separate step that was never explained -- "Policy" says
+            // honestly what it is. Display only — code and DB keep "policy".
+            'branding.policy_term'              => 'Policy',
             // And the browser-restriction rule. Display only, as above.
             'branding.browser_policy_term'      => 'Browser Control',
             'agent.online_threshold_seconds'    => (int) config('piodeploy.agent.online_threshold_seconds', 300),

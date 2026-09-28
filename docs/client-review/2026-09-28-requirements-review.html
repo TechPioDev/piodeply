@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PioDeploy Requirements Review</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@600;700;800&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --ink: #1c2230; --sub: #5c6470; --line: #e5e2da; --bg: #f7f5f0; --card: #ffffff;
+    --teal: #0b6e63; --teal-bg: #dff3ef;
+    --amber: #92400e; --amber-bg: #fdf1dc;
+    --blue: #1e40af; --blue-bg: #e2ebfb;
+    --green: #166534; --green-bg: #e1f3e6;
+    --red: #991b1b; --red-bg: #fbe6e6;
+    --final-bg: #17202b; --final-ink: #e4e7ec; --final-sub: #b7c0cb;
+    --code-bg: #efece4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ink: #e8e6df; --sub: #9aa1ab; --line: #2b3038; --bg: #12151a; --card: #1a1e25;
+      --teal: #5eead4; --teal-bg: #103832;
+      --amber: #fbbf24; --amber-bg: #3f2d0c;
+      --blue: #93c5fd; --blue-bg: #17233d;
+      --green: #86efac; --green-bg: #103019;
+      --red: #fca5a5; --red-bg: #3a1414;
+      --final-bg: #05070a; --final-ink: #e4e7ec; --final-sub: #98a2ad;
+      --code-bg: #232830;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ink: #e8e6df; --sub: #9aa1ab; --line: #2b3038; --bg: #12151a; --card: #1a1e25;
+    --teal: #5eead4; --teal-bg: #103832;
+    --amber: #fbbf24; --amber-bg: #3f2d0c;
+    --blue: #93c5fd; --blue-bg: #17233d;
+    --green: #86efac; --green-bg: #103019;
+    --red: #fca5a5; --red-bg: #3a1414;
+    --final-bg: #05070a; --final-ink: #e4e7ec; --final-sub: #98a2ad;
+    --code-bg: #232830;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.6; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 40px 20px 100px; }
+  h1, h2 { font-family: "Libre Franklin", -apple-system, "Segoe UI", Roboto, Arial, sans-serif; text-wrap: balance; }
+  h1 { font-size: 27px; font-weight: 800; margin: 0 0 6px; letter-spacing: -.01em; }
+  .subtitle { color: var(--sub); font-size: 15px; margin-bottom: 28px; }
+  .intro { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px 24px; margin-bottom: 32px; font-size: 14.5px; }
+  .intro p { margin: 0 0 10px; }
+  .intro p:last-child { margin-bottom: 0; }
+  .toc { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px 24px; margin-bottom: 36px; }
+  .toc h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--sub); margin: 0 0 12px; }
+  .toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; font-size: 14px; }
+  .toc li { margin-bottom: 6px; break-inside: avoid; }
+  .toc a { color: var(--ink); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .module { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 26px 28px; margin-bottom: 22px; scroll-margin-top: 20px; }
+  .module-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 4px; flex-wrap: wrap; }
+  .module h2 { font-size: 18px; font-weight: 700; margin: 0; color: var(--ink); }
+  .module .priority { font-size: 11px; color: var(--sub); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 14px; }
+  .badge { display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 11px; border-radius: 999px; white-space: nowrap; }
+  .badge-exists { background: var(--green-bg); color: var(--green); }
+  .badge-partial { background: var(--blue-bg); color: var(--blue); }
+  .badge-gap { background: var(--amber-bg); color: var(--amber); }
+  .badge-decision { background: var(--red-bg); color: var(--red); }
+  .module h3 { font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--sub); margin: 18px 0 6px; }
+  .module h3:first-of-type { margin-top: 4px; }
+  .module p, .module li { font-size: 14.5px; color: var(--ink); }
+  .module ul { margin: 4px 0; padding-left: 20px; }
+  code, .code { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 13px; background: var(--code-bg); color: var(--ink); padding: 1px 5px; border-radius: 4px; }
+  .rec-box { background: var(--teal-bg); border-left: 3px solid var(--teal); border-radius: 6px; padding: 12px 16px; margin-top: 6px; }
+  .rec-box p { margin: 0; color: var(--ink); }
+  .decision-box { background: var(--red-bg); border-left: 3px solid var(--red); border-radius: 6px; padding: 12px 16px; margin-top: 6px; }
+  .decision-box p, .decision-box li { color: var(--ink); }
+  .effort { display: inline-block; margin-top: 14px; font-size: 12.5px; color: var(--sub); }
+  .effort b { color: var(--ink); }
+  .tracker { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line); font-size: 13px; color: var(--sub); }
+  .tracker label { display: inline-flex; align-items: center; gap: 6px; margin-right: 18px; }
+  table.summary { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 10px; }
+  table.summary th, table.summary td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--ink); }
+  table.summary th { color: var(--sub); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+  .final { background: var(--final-bg); color: var(--final-ink); border-radius: 12px; padding: 28px 30px; margin-top: 36px; }
+  .final h2 { color: var(--final-ink); font-size: 18px; font-weight: 700; margin-top: 0; }
+  .final p { font-size: 14.5px; color: var(--final-sub); }
+  @media (max-width: 600px) { .toc ol { columns: 1; } .wrap { padding-left: 16px; padding-right: 16px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>PioDeploy — Response to Requirements &amp; Recommendations Review</h1>
+  <div class="subtitle">Prepared 28 September 2026 · Reviewing the client's 10-point requirements document against the current codebase</div>
+
+  <div class="intro">
+    <p><strong>How this report was put together:</strong> every point below was checked directly against the running application's source code — models, services, and the actual Livewire pages the client saw in their screenshots — not answered from memory or assumption. Where something the client described as "unclear" turned out to already exist and work correctly, that's stated plainly, along with the code evidence. Where something is genuinely missing, that's stated plainly too, along with a concrete recommendation and effort estimate.</p>
+    <p>Each module below is independently trackable: as each is implemented, mark it and verify it live before moving to the next, exactly as requested.</p>
+  </div>
+
+  <div class="toc">
+    <h2>Modules</h2>
+    <ol>
+      <li><a href="#m1">User Management &amp; Role-Based Permissions</a></li>
+      <li><a href="#m2">Approvals Section</a></li>
+      <li><a href="#m3">Packages vs. Deployments</a></li>
+      <li><a href="#m4">Deployment Scope (Site / Machine / Group)</a></li>
+      <li><a href="#m5">Needs Attention</a></li>
+      <li><a href="#m6">Automation vs. Policies</a></li>
+      <li><a href="#m7">Automation Scope (Site / Machine / Group)</a></li>
+      <li><a href="#m8">Navigation &amp; UX</a></li>
+      <li><a href="#m9">Audit Logging</a></li>
+      <li><a href="#summary">Summary &amp; Final Recommendation</a></li>
+    </ol>
+  </div>
+
+  <!-- MODULE 1 -->
+  <div class="module" id="m1">
+    <div class="module-head"><h2>1. User Management &amp; Role-Based Permissions</h2><span class="badge badge-exists">Already exceeds this ask</span></div>
+    <div class="priority">Client priority: High</div>
+
+    <h3>What was asked</h3>
+    <p>Clear Admin vs. Standard User account types, permission assignment by role, custom roles, and unambiguous identification of account type.</p>
+
+    <h3>What's actually there</h3>
+    <p>This is not a binary switch — it's a full 7-role system (<code>App\Enums\Role</code>): <code>SuperAdmin</code>, <code>Admin</code>, <code>Manager</code>, <code>ClientOwner</code>, <code>Technician</code>, <code>Client</code>, <code>Viewer</code>, each with its own permission set drawn from an 18-permission catalogue (<code>App\Enums\Permission</code>). Staff with <code>roles.manage</code> can edit exactly what each role can do — live, from <code>Admin → Roles</code> — with a one-click "reset to defaults."</p>
+    <p>On top of that, every tenant (client) can define their own <strong>custom roles</strong> for their own team (<code>App\Models\ClientRole</code>, under <code>Team → Roles</code>): install/update/uninstall capability, which machines they can touch (all / specific sites / an explicit machine list), which software (all / categories / an explicit package list), and whether their actions need sign-off. This isn't cosmetic — it's enforced at the exact point a deployment gets queued (<code>ClientRole::allows()</code> inside <code>DeploymentService</code>), not just hidden in the UI.</p>
+
+    <div class="rec-box"><p><strong>Recommendation:</strong> keep the existing RBAC exactly as-is — it already does more than a simple Admin/Standard split would allow, and downgrading to a binary model would be a step backward. The client's confusion is about <em>visibility</em>, not capability: add a small "Staff" vs. "Client team" badge next to each user's role on the Users page, and a short explainer on both the Roles and Team Roles pages describing how the two layers (platform roles vs. each tenant's own custom roles) relate. No architecture change.</p></div>
+    <span class="effort"><b>Effort:</b> Small — UI labeling and help text only.</span>
+    <div class="tracker">Status: <label><input type="checkbox" disabled> Proposed</label><label><input type="checkbox" disabled> Built</label><label><input type="checkbox" disabled> Verified live by client</label></div>
+  </div>
+
+  <!-- MODULE 2 -->
+  <div class="module" id="m2">
+    <div class="module-head"><h2>2. Approvals Section</h2><span class="badge badge-exists">Real feature — recommend keeping</span></div>
+    <div class="priority">Client priority: Medium</div>
+
+    <h3>What was asked</h3>
+    <p>Clarify the purpose of Approvals, or remove the tab if there's no defined business need.</p>
+
+    <h3>What's actually there</h3>
+    <p>Approvals is wired directly into the real deployment path, not a side feature — it's tested end to end (<code>tests/Feature/ApprovalWorkflowTest.php</code>). It only triggers for a tenant's own custom role (Module 1) that has "requires approval" turned on: when someone with that role tries to deploy something their role otherwise allows, the system files a request instead of running the job, notifies the account owner, and waits. The owner sees pending and decided requests with full history (who decided, when, resulting job) on the Approvals page.</p>
+    <p>Because it only ever appears for tenants actively using that specific setting, most people never see it fire — which is exactly why its purpose reads as unclear rather than broken.</p>
+
+    <div class="rec-box"><p><strong>Recommendation:</strong> keep it — removing it would delete real, tested functionality that lets an MSP client's owner delegate day-to-day installs to junior staff while retaining sign-off. Two small changes instead: (1) only show the Approvals tab in navigation when the tenant has at least one custom role configured with approval required (the plumbing for conditional nav items already exists), and (2) add one sentence of explanation at the top of the page itself. Status/history visibility the client's acceptance criteria asks for is already there.</p></div>
+    <span class="effort"><b>Effort:</b> Small.</span>
+    <div class="tracker">Status: <label><input type="checkbox" disabled> Proposed</label><label><input type="checkbox" disabled> Built</label><label><input type="checkbox" disabled> Verified live by client</label></div>
+  </div>
+
+  <!-- MODULE 3 -->
+  <div class="module" id="m3">
+    <div class="module-head"><h2>3. Packages vs. Deployments</h2><span class="badge badge-exists">Already separated correctly</span></div>
+    <div class="priority">Client priority: High</div>
+
+    <h3>What was asked</h3>
+    <p>Packages should be the reusable software library; Deployments should handle targeting, scheduling, execution, and results — following Package → Deployment → Target → Schedule → Execution → Result.</p>
+
+    <h3>What's actually there</h3>
+    <p>This separation already exists exactly as described. <strong>Packages</strong> is purely a catalogue — name, installer type, version, category, active/blocked status — with no job or machine data mixed in. <strong>Deployments</strong> is purely the job queue and history — one row per machine+package+action, with retry, cancel, and retry-all-failed. There's no overlapping data model between the two.</p>
+    <p>The perceived overlap is almost certainly navigational: both currently sit next to each other under one "Software" menu section with similar styling, with nothing on either page explicitly stating its role in the flow.</p>
+
+    <div class="rec-box"><p><strong>Recommendation:</strong> no functional change needed. Add one line under each page's heading stating its role in the flow (e.g. Packages: "The catalogue of software available to deploy — not connected to any specific machine"; Deployments: "What's been sent where, and how it went"). This resolves further once Module 8's navigation regrouping separates them more visually.</p></div>
+    <span class="effort"><b>Effort:</b> Small — copy only.</span>
+    <div class="tracker">Status: <label><input type="checkbox" disabled> Proposed</label><label><input type="checkbox" disabled> Built</label><label><input type="checkbox" disabled> Verified live by client</label></div>
+  </div>
+
+  <!-- MODULE 4 -->
+  <div class="module" id="m4">
+    <div class="module-head"><h2>4. Deployment Scope — Site / Machine / Group</h2><span class="badge badge-gap">Genuine gap — agreed</span></div>
+    <div class="priority">Client priority: High</div>
+
+    <h3>What was asked</h3>
+    <p>Bulk Deploy should support Site, Machine, and Group targeting, following Package → Target Type → Target → Action → Schedule, with reviewable targets, per-machine results, and retry on failure.</p>
+
+    <h3>What's actually there</h3>
+    <p>Site-level bulk deploy exists and works. Machine-level exists, but only as a completely separate single-machine screen — it isn't a target-type option inside Bulk Deploy itself. A real <strong>Group</strong> concept already exists in the data model (<code>App\Models\ComputerGroup</code> — a named, hand-curated set of machines that can cut across clients and sites), but today it's wired only into Browser Policies, not into software deployments at all.</p>
+    <p>Per-machine results and retry-on-failure already exist for every deployment regardless of how it was targeted, since every job is always one row per machine underneath.</p>
+
+    <div class="rec-box"><p><strong>Recommendation:</strong> agree — this is real, worthwhile work, and matches the client's own High priority. Add a Target Type step to Bulk Deploy: <strong>Site</strong> (existing) / <strong>Group</strong> (reuse the existing, already-proven Group model — the same pattern Browser Policies already use) / <strong>Specific Machines</strong> (a new multi-select). No changes needed to results, retry, or the job model itself — that machinery already exists.</p></div>
+    <span class="effort"><b>Effort:</b> Medium — mostly UI (a target-type step) plus one new targeting query path; no schema changes to the job model.</span>
+    <div class="tracker">Status: <label><input type="checkbox" disabled> Proposed</label><label><input type="checkbox" disabled> Built</label><label><input type="checkbox" disabled> Verified live by client</label></div>
+  </div>
+
+  <!-- MODULE 5 -->
+  <div class="module" id="m5">
+    <div class="module-head"><h2>5. Needs Attention</h2><span class="badge badge-partial">Partially built — extend scope</span></div>
+    <div class="priority">Client priority: High</div>
+
+    <h3>What was asked</h3>
+    <p>A unified, actionable dashboard covering failed deployments/installs, offline machines, missing/outdated software, failed policies/automations, pending actions, reboot requirements, and agent communication issues — with Machine, Site, Issue, Severity, Detection Time, Status, Recommended Action, and an action button per row.</p>
+
+    <h3>What's actually there</h3>
+    <p>The existing Needs Attention page is more sophisticated than a plain failure list: it groups failed deployments by <em>root cause</em> (not one row per machine), classifies each as a package problem or a machine problem, states who owns fixing it, shows affected-machine count and first/last-seen time, auto-clears the moment a later attempt succeeds, and supports manual dismissal that reopens automatically if the same problem recurs. For deployment failures specifically, this already meets nearly every acceptance criterion the client listed.</p>
+    <p>The gap is scope: today it only looks at deployment failures. It doesn't yet pull in offline/non-checking-in machines, failed policy enforcement, pending approvals, or reboot-pending state — those may surface elsewhere in the app individually, but aren't unified into this one view.</p>
+
+    <div class="rec-box"><p><strong>Recommendation:</strong> agree to extend, not rebuild. The hard part — grouping, dismissal, auto-clear/reopen — already exists and works well; the remaining work is feeding it three more signal types: machines with no recent check-in, policies whose last enforcement failed, and approval requests waiting past a threshold. Each becomes another entry in the same table using the existing engine.</p></div>
+    <span class="effort"><b>Effort:</b> Medium–Large — the grouping/lifecycle engine is reused as-is; effort is in wiring the new signal sources.</span>
+    <div class="tracker">Status: <label><input type="checkbox" disabled> Proposed</label><label><input type="checkbox" disabled> Built</label><label><input type="checkbox" disabled> Verified live by client</label></div>
+  </div>
+
+  <!-- MODULE 6 -->
+  <div class="module" id="m6">
+    <div class="module-head"><h2>6. Automation vs. Policies</h2><span class="badge badge-decision">Needs a decision — see below</span></div>
+    <div class="priority">Client priority: High</div>
+
+    <h3>What was asked</h3>
+    <p>Policy should define desired state; Automation should define a trigger/condition/schedule-based action. Example given: a Policy ensures Chrome is installed; an Automation checks for Chrome every Friday and installs it if missing. Clarify the relationship if one requires the other.</p>
+
+    <h3>What's actually there — the headline finding</h3>
+    <p><strong>"Automation" is not a separate feature today. It's a display label on top of Policies.</strong> A setting (<code>branding.policy_term</code>) is literally the word "Automation," and every screen the client saw labeled Automation is the exact same <code>SoftwarePolicy</code> model and the exact same form as Policies — just relabeled. There is no separate trigger/condition step, and no case where creating an Automation asks for a genuinely different, separate Policy first — it's one form wearing two names, which is precisely the confusing experience described.</p>
+    <p>Worth noting: the client's own worked example — "every Friday, check for Chrome and install if missing" — is <em>already possible today</em> through a Policy's own scheduling fields (frequency, maintenance window). The desired behavior already exists; only the naming is misleading.</p>
+
+    <div class="decision-box">
+      <p><strong>This needs your decision before we build anything here</strong> — it changes how the product is conceptually described to every future client, so we're not picking unilaterally:</p>
+      <ul>
+        <li><strong>Option A — Rename for honesty (near-zero effort):</strong> stop calling it "Automation" anywhere; call it "Policies" consistently everywhere. Resolves the literal confusion immediately, since the scheduling behavior the client wants already exists inside Policies.</li>
+        <li><strong>Option B — Build the real distinction (substantial new work):</strong> a genuine separate Automation layer — trigger (schedule, event, or condition) + action — that can reference one or more existing Policies. Matches the client's mental model exactly, but is a materially larger, net-new feature (new model, new UI, new execution engine).</li>
+      </ul>
+      <p style="margin-top:10px;"><strong>Our recommendation:</strong> ship Option A now (it's nearly free and fixes the exact confusion reported), then revisit Option B only if, once the labeling is accurate, the client still wants trigger types beyond "on a schedule" — e.g. "when a new machine enrolls" or "when a file is detected" — which a scheduled Policy check alone can't express.</p>
+    </div>
+    <span class="effort"><b>Effort:</b> Option A — trivial. Option B — large; needs its own scoping conversation before an estimate.</span>
+    <div class="tracker">Status: <label><input type="checkbox" disabled> Decision made</label><label><input type="checkbox" disabled> Built</label><label><input type="checkbox" disabled> Verified live by client</label></div>
+  </div>
+
+  <!-- MODULE 7 -->
+  <div class="module" id="m7">
+    <div class="module-head"><h2>7. Automation (Policy) Scope — Site / Machine / Group</h2><span class="badge badge-gap">Genuine gap — agreed</span></div>
+    <div class="priority">Client priority: High</div>
+
+    <h3>What was asked</h3>
+    <p>Site, Machine, and Group scoping for Automations, following Automation → Trigger → Target → Action → Schedule, with visible scope, and execution history.</p>
+
+    <h3>What's actually there</h3>
+    <p>Policies today only target a whole site/project (required on every policy) plus an <em>exclusion</em> list to carve out specific machines from an otherwise site-wide rule — there's no way to positively target one machine or a group. Group targeting doesn't exist for Policies at all, even though it already exists and works for Browser Policies via the same underlying Group model referenced in Module 4.</p>
+
+    <div class="rec-box"><p><strong>Recommendation:</strong> agree. Extend Policies the same way Browser Policies already do it — add a scope type (site or group) and reuse the existing Group model. This is a proven pattern already working elsewhere in the same codebase, which lowers both effort and risk. A positive "specific machine" target can be added the same way if wanted alongside the existing exclusion list.</p></div>
+    <span class="effort"><b>Effort:</b> Medium — copying an existing, working pattern from Browser Policies.</span>
+    <div class="tracker">Status: <label><input type="checkbox" disabled> Proposed</label><label><input type="checkbox" disabled> Built</label><label><input type="checkbox" disabled> Verified live by client</label></div>
+  </div>
+
+  <!-- MODULE 8 -->
+  <div class="module" id="m8">
+    <div class="module-head"><h2>8. Navigation &amp; UX</h2><span class="badge badge-gap">Reasonable — agreed, pending Module 6</span></div>
+    <div class="priority">Client priority: Medium</div>
+
+    <h3>What was asked</h3>
+    <p>Group navigation as: Dashboard · Assets (Sites, Machines, Groups) · Software (Packages, Deployments) · Management (Policies, Automations) · Administration (Users, Roles, Config) · Reports (Reports, Deployment History, Automation History, Audit Logs).</p>
+
+    <h3>What's actually there</h3>
+    <p>The current grouping is close in spirit but different in boundaries: Fleet (Clients, Sites, Computers, Team, Approvals, Device Groups), Software (Packages, Deployments, Needs Attention, Licenses, Policies, Browser Policies), Insights (Reports, Activity), Billing, and Administration. Device Groups already exists as its own item, matching the client's "Groups" ask.</p>
+
+    <div class="rec-box"><p><strong>Recommendation:</strong> agree to reorganize along the proposed lines. The exact shape of the "Management" group depends on the Module 6 decision — if Policies and Automation stay merged (Option A), that group holds just Policies; if a real Automation layer is built later (Option B), it gets its own entry then. Otherwise this is a straightforward relabeling of existing pages into clearer groups, not new functionality.</p></div>
+    <span class="effort"><b>Effort:</b> Small–Medium — reorganizing an existing menu definition; no new backend logic beyond what other modules already add.</span>
+    <div class="tracker">Status: <label><input type="checkbox" disabled> Proposed</label><label><input type="checkbox" disabled> Built</label><label><input type="checkbox" disabled> Verified live by client</label></div>
+  </div>
+
+  <!-- MODULE 9 -->
+  <div class="module" id="m9">
+    <div class="module-head"><h2>9. Audit Logging</h2><span class="badge badge-exists">Largely already built</span></div>
+    <div class="priority">Client priority: Medium/High</div>
+
+    <h3>What was asked</h3>
+    <p>Log every administrative change (users/permissions, packages, deployments, policies, automations, enrollment, config) with User, Action, Target, Date/Time, Previous Value, New Value, and Result — searchable, filterable, and restricted to authorized administrators.</p>
+
+    <h3>What's actually there</h3>
+    <p>A real, working audit log already exists (<code>Activity Log</code>, under Insights), permission-gated, tenant-scoped so a client only ever sees their own team's actions, searchable by action text or user name, and filterable by category. Its columns already cover When, Log category, Action, By (user), and Subject (the affected record) — most of what was asked for is already live today, not a gap.</p>
+
+    <h3>What's genuinely missing</h3>
+    <p>The current "Detail" column shows raw logged data as-is rather than clean, separate Previous Value / New Value columns. We also haven't yet done a full coverage pass to confirm literally every administrative action type in the client's list writes a log entry — some areas may log richer detail than others today.</p>
+
+    <div class="rec-box"><p><strong>Recommendation:</strong> keep the existing engine — it doesn't need to be rebuilt. Two remaining pieces of work: (1) a coverage audit confirming every admin action category the client listed is actually logged, filling any real gaps found, and (2) reworking the Detail column into explicit Previous Value / New Value fields where the underlying data supports it.</p></div>
+    <span class="effort"><b>Effort:</b> Small–Medium.</span>
+    <div class="tracker">Status: <label><input type="checkbox" disabled> Proposed</label><label><input type="checkbox" disabled> Built</label><label><input type="checkbox" disabled> Verified live by client</label></div>
+  </div>
+
+  <!-- SUMMARY -->
+  <div class="module" id="summary">
+    <h2 style="margin-bottom:16px;">Summary — Status at a Glance</h2>
+    <table class="summary">
+      <thead><tr><th>#</th><th>Item</th><th>Priority</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>User Roles &amp; Permissions</td><td>High</td><td>Already exceeds ask — UI clarity only</td></tr>
+        <tr><td>2</td><td>Approvals</td><td>Medium</td><td>Real feature — keep, clarify visibility</td></tr>
+        <tr><td>3</td><td>Packages vs. Deployments</td><td>High</td><td>Already separated — copy/labeling only</td></tr>
+        <tr><td>4</td><td>Site/Machine/Group Deployment</td><td>High</td><td>Genuine gap — agreed to build</td></tr>
+        <tr><td>5</td><td>Needs Attention</td><td>High</td><td>Partially built — agreed to extend scope</td></tr>
+        <tr><td>6</td><td>Automation vs. Policies</td><td>High</td><td><strong>Awaiting your decision (A or B)</strong></td></tr>
+        <tr><td>7</td><td>Site/Machine/Group Automation</td><td>High</td><td>Genuine gap — agreed to build</td></tr>
+        <tr><td>8</td><td>Navigation Improvements</td><td>Medium</td><td>Agreed — pending #6 decision</td></tr>
+        <tr><td>9</td><td>Audit Logging</td><td>Medium/High</td><td>Largely built — coverage audit + display work remains</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="final">
+    <h2>Final Recommendation</h2>
+    <p>The client's overall functional structure — clean separation of Users, Roles &amp; Permissions, Packages, Deployments, Policies, Automations, and Needs Attention — is the right direction, and much of it is already true of the underlying system today, even where the UI hasn't made that obvious yet. The real, concrete build work is Site/Machine/Group targeting for both Deployments and Policies (Modules 4 &amp; 7, both reusing the same proven Group model already working for Browser Policies), and extending Needs Attention's scope beyond deployment failures (Module 5). Everything else is either already built and needs better presentation, or — in the one case of Automation vs. Policies — needs a single decision from the client before any code changes, since it affects how the product is described going forward, not just how it looks.</p>
+  </div>
+
+</div>
+</body>
+</html>
