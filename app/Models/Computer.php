@@ -229,6 +229,57 @@ class Computer extends Model
     }
 
     /**
+     * PioDeploy has no hypervisor integration — this is inferred from the
+     * manufacturer/model text the agent already reports (the same fields
+     * every BIOS/WMI-based inventory tool uses for this), not a guaranteed
+     * platform API. Good enough to answer "roughly how many of these are
+     * VMs", not a claim of certainty for any one machine.
+     */
+    private const VIRTUAL_HARDWARE_SIGNATURES = [
+        'VMware', 'Virtual Machine', 'VirtualBox', 'innotek', 'QEMU', 'KVM',
+        'Xen', 'Parallels', 'Google Compute Engine', 'Amazon EC2',
+    ];
+
+    /** @return 'physical'|'virtual'|'unknown' */
+    public function hardwareType(): string
+    {
+        if (blank($this->manufacturer) && blank($this->model)) {
+            return 'unknown';
+        }
+
+        $haystack = ($this->manufacturer ?? '') . ' ' . ($this->model ?? '');
+        foreach (self::VIRTUAL_HARDWARE_SIGNATURES as $needle) {
+            if (stripos($haystack, $needle) !== false) {
+                return 'virtual';
+            }
+        }
+
+        return 'physical';
+    }
+
+    /** @param  'physical'|'virtual'|'unknown'  $type */
+    public function scopeHardwareType(Builder $query, string $type): Builder
+    {
+        $isVirtual = function (Builder $q): void {
+            $q->where(function (Builder $sub) {
+                foreach (self::VIRTUAL_HARDWARE_SIGNATURES as $needle) {
+                    $sub->orWhere('manufacturer', 'like', "%{$needle}%")
+                        ->orWhere('model', 'like', "%{$needle}%");
+                }
+            });
+        };
+
+        return match ($type) {
+            'virtual' => $query->where($isVirtual),
+            'physical' => $query
+                ->where(fn (Builder $q) => $q->whereNotNull('manufacturer')->orWhereNotNull('model'))
+                ->whereNot($isVirtual),
+            'unknown' => $query->whereNull('manufacturer')->whereNull('model'),
+            default => $query,
+        };
+    }
+
+    /**
      * The machines a user may see in a picker: staff see all; a tenant sees
      * only machines in their own client's projects, narrowed to any
      * projects a technician is confined to.

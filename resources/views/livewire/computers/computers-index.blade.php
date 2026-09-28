@@ -48,6 +48,12 @@
                     <option value="uptodate">Up to date</option>
                     <option value="pending">Pending job</option>
                 </select>
+                <select wire:model.live="hardwareType" aria-label="Filter by hardware type"
+                        class="border-slate-300 rounded-md shadow-sm text-sm">
+                    <option value="">Physical + virtual</option>
+                    <option value="physical">Physical</option>
+                    <option value="virtual">Virtual machine</option>
+                </select>
                 @unless ($isTenant ?? false)
 <label class="flex items-center gap-2 text-sm text-slate-600">
                     <input type="checkbox" wire:model.live="showTrashed" class="rounded border-slate-300">

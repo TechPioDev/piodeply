@@ -264,11 +264,18 @@ class BrowserVersionServiceTest extends TestCase
 
     public function test_a_healthy_machine_with_no_browsers_reported_is_unaffected(): void
     {
-        // agent_version explicit: the factory default is an old build (it
-        // exists to test the OUTDATED-agent deduction elsewhere), which
-        // would cost -10 on its own and has nothing to do with browsers.
+        // agent_version and disk explicit: the factory defaults are an old
+        // agent build and a random free-space percentage (both exist to
+        // test their own deductions elsewhere) — either can cost points on
+        // its own and has nothing to do with browsers, and the random disk
+        // figure made this assertion flaky (it occasionally crossed the
+        // 10%/20% free thresholds).
         $computer = $this->computer();
-        $computer->forceFill(['agent_version' => \App\Services\EnrollmentScriptService::CURRENT_AGENT_VERSION])->save();
+        $computer->forceFill([
+            'agent_version'    => \App\Services\EnrollmentScriptService::CURRENT_AGENT_VERSION,
+            'disk_total_bytes' => 500_000_000_000,
+            'disk_free_bytes'  => 250_000_000_000,
+        ])->save();
 
         $this->assertSame(100, $computer->fresh()->healthScore()['score']);
     }

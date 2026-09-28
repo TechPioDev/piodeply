@@ -114,6 +114,95 @@
                 </a>
             </div>
 
+            {{-- Device health summary: only signals PioDeploy actually tracks
+                 (this app has no antivirus, vulnerability scanner, MDM, or
+                 hypervisor-host monitoring, so those rows are left out
+                 rather than faked). Hardware mix and every issue count are
+                 clickable straight through to the filtered list. --}}
+            @if ($deviceHealth['total'] > 0)
+                @php
+                    $dh = $deviceHealth;
+                    $dhTotal = $dh['total'];
+                    $pctHealthy = $dhTotal > 0 ? round($dh['tiers']['healthy'] / $dhTotal * 100) : 0;
+                    $tierBar = [
+                        ['label' => 'Healthy', 'value' => $dh['tiers']['healthy'], 'bar' => 'bg-emerald-500', 'dot' => 'bg-emerald-500'],
+                        ['label' => 'Needs attention', 'value' => $dh['tiers']['needs_attention'], 'bar' => 'bg-amber-400', 'dot' => 'bg-amber-400'],
+                        ['label' => 'Unhealthy', 'value' => $dh['tiers']['unhealthy'], 'bar' => 'bg-red-500', 'dot' => 'bg-red-500'],
+                        ['label' => 'Unknown', 'value' => $dh['tiers']['unknown'], 'bar' => 'bg-slate-300', 'dot' => 'bg-slate-300'],
+                    ];
+                    $issuesBySeverity = collect($dh['issues'])->filter(fn ($i) => $i['count'] > 0)->groupBy('severity');
+                    $severityLabels = ['unhealthy' => 'Unhealthy', 'needs_attention' => 'Needs attention'];
+                    $severityColor = ['unhealthy' => 'text-red-600', 'needs_attention' => 'text-amber-600'];
+                @endphp
+                <div class="pd-card p-6">
+                    <div class="flex items-center justify-between mb-1">
+                        <h3 class="text-sm font-semibold text-slate-700 uppercase tracking-wide">Device health summary</h3>
+                        <a href="{{ route('reports.computers') }}" class="text-xs text-teal-600 hover:underline">Full fleet health report →</a>
+                    </div>
+
+                    <p class="text-2xl font-bold text-slate-900 mt-2">{{ $pctHealthy }}% healthy</p>
+                    <div class="flex h-3 rounded-full overflow-hidden bg-slate-100 mt-3" role="img"
+                         aria-label="Device health: {{ collect($tierBar)->map(fn ($r) => "{$r['label']} {$r['value']}")->join(', ') }}">
+                        @foreach ($tierBar as $seg)
+                            @if ($seg['value'] > 0)
+                                <span class="{{ $seg['bar'] }} h-full border-r-2 border-white last:border-r-0"
+                                      style="width: {{ $seg['value'] / $dhTotal * 100 }}%"></span>
+                            @endif
+                        @endforeach
+                    </div>
+                    <div class="flex flex-wrap gap-x-5 gap-y-1.5 mt-3 text-xs text-slate-500">
+                        @foreach ($tierBar as $seg)
+                            <span class="flex items-center gap-1.5">
+                                <span class="h-2 w-2 rounded-full {{ $seg['dot'] }}"></span>{{ $seg['label'] }} ({{ $seg['value'] }})
+                            </span>
+                        @endforeach
+                    </div>
+
+                    {{-- Hardware mix — inferred from reported manufacturer/model text; PioDeploy has no hypervisor API to confirm it. --}}
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-5">
+                        <a href="{{ route('computers.index', ['hardwareType' => 'physical']) }}" class="pd-card p-3 hover:border-teal-300 transition-colors">
+                            <p class="text-lg font-bold text-slate-800">{{ $dh['hardware']['physical'] }}</p>
+                            <p class="text-xs text-slate-500">Physical machines</p>
+                        </a>
+                        <a href="{{ route('computers.index', ['hardwareType' => 'virtual']) }}" class="pd-card p-3 hover:border-teal-300 transition-colors">
+                            <p class="text-lg font-bold text-slate-800">{{ $dh['hardware']['virtual'] }}</p>
+                            <p class="text-xs text-slate-500">Virtual machines</p>
+                        </a>
+                        @if ($dh['hardware']['unknown'] > 0)
+                            <div class="pd-card p-3">
+                                <p class="text-lg font-bold text-slate-400">{{ $dh['hardware']['unknown'] }}</p>
+                                <p class="text-xs text-slate-500">Hardware type unknown</p>
+                            </div>
+                        @endif
+                    </div>
+
+                    {{-- Issues list, grouped by severity, each row a live drill-down link. --}}
+                    <div class="mt-5 pt-4 border-t border-slate-100">
+                        <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Device health issues</h4>
+                        @if ($issuesBySeverity->isEmpty())
+                            <p class="text-sm text-emerald-600 mt-2">No open device-health issues.</p>
+                        @else
+                            @foreach (['unhealthy', 'needs_attention'] as $sev)
+                                @if ($issuesBySeverity->has($sev))
+                                    <p class="text-[11px] font-semibold {{ $severityColor[$sev] }} uppercase tracking-wide mt-3 mb-1">{{ $severityLabels[$sev] }}</p>
+                                    <ul class="divide-y divide-slate-100">
+                                        @foreach ($issuesBySeverity[$sev] as $issue)
+                                            <li>
+                                                <a href="{{ route($issue['route'], $issue['params']) }}"
+                                                   class="flex items-center justify-between py-1.5 text-sm text-slate-700 hover:text-teal-600 transition-colors">
+                                                    <span>{{ $issue['label'] }}</span>
+                                                    <span class="font-mono font-semibold {{ $severityColor[$sev] }}">{{ $issue['count'] }}</span>
+                                                </a>
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                @endif
+                            @endforeach
+                        @endif
+                    </div>
+                </div>
+            @endif
+
             {{-- What is behind, folded by package: one update across sixty
                  machines is one decision, not sixty rows. --}}
             @if ($updatesByPackage->isNotEmpty())

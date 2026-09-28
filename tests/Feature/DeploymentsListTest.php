@@ -295,6 +295,28 @@ class DeploymentsListTest extends TestCase
             ->assertViewHas('jobs', fn ($jobs) => $jobs->first()->id === $newest->id);
     }
 
+    public function test_status_is_bound_to_the_url_for_deep_linking(): void
+    {
+        // The dashboard's "Failed deployments" health-issue row links to
+        // ?status=failed; the property must hydrate from the query string.
+        $computer = Computer::factory()->create();
+        DeploymentJob::factory()->create([
+            'computer_id' => $computer->id, 'package_id' => Package::factory()->create(['name' => 'FailedPkg'])->id,
+            'status' => JobStatus::Failed,
+        ]);
+        DeploymentJob::factory()->create([
+            'computer_id' => $computer->id, 'package_id' => Package::factory()->create(['name' => 'OkPkg'])->id,
+            'status' => JobStatus::Succeeded,
+        ]);
+
+        Livewire::withQueryParams(['status' => 'failed'])
+            ->actingAs($this->admin())
+            ->test(DeploymentsIndex::class)
+            ->assertSet('status', 'failed')
+            ->assertSee('FailedPkg')
+            ->assertDontSee('OkPkg');
+    }
+
     public function test_different_actions_on_one_package_stay_separate_rows(): void
     {
         $computer = Computer::factory()->create();

@@ -543,4 +543,67 @@ class ComputerManagementTest extends TestCase
 
         $this->assertSame(0, $computer->healthScore()['score']);
     }
+
+    /* ─────────── hardware type (VM vs physical) ─────────── */
+
+    public function test_a_vmware_signature_is_detected_as_virtual(): void
+    {
+        $computer = Computer::factory()->create(['manufacturer' => 'VMware, Inc.', 'model' => 'VMware Virtual Platform']);
+
+        $this->assertSame('virtual', $computer->hardwareType());
+    }
+
+    public function test_a_hyperv_guest_is_detected_as_virtual_by_model(): void
+    {
+        $computer = Computer::factory()->create(['manufacturer' => 'Microsoft Corporation', 'model' => 'Virtual Machine']);
+
+        $this->assertSame('virtual', $computer->hardwareType());
+    }
+
+    public function test_an_oem_manufacturer_is_physical(): void
+    {
+        $computer = Computer::factory()->create(['manufacturer' => 'Dell Inc.', 'model' => 'OptiPlex 7010']);
+
+        $this->assertSame('physical', $computer->hardwareType());
+    }
+
+    public function test_no_manufacturer_or_model_is_unknown_not_physical(): void
+    {
+        $computer = Computer::factory()->create(['manufacturer' => null, 'model' => null]);
+
+        $this->assertSame('unknown', $computer->hardwareType());
+    }
+
+    public function test_hardware_type_scope_filters_the_computers_list(): void
+    {
+        $vm = Computer::factory()->create(['manufacturer' => 'VMware, Inc.', 'model' => 'VMware7,1', 'hostname' => 'VM-HOST']);
+        $physical = Computer::factory()->create(['manufacturer' => 'LENOVO', 'model' => 'ThinkPad T14', 'hostname' => 'LAPTOP-HOST']);
+
+        $admin = $this->admin();
+
+        Livewire::actingAs($admin)
+            ->test(ComputersIndex::class)
+            ->set('hardwareType', 'virtual')
+            ->assertSee('VM-HOST')
+            ->assertDontSee('LAPTOP-HOST');
+
+        Livewire::actingAs($admin)
+            ->test(ComputersIndex::class)
+            ->set('hardwareType', 'physical')
+            ->assertSee('LAPTOP-HOST')
+            ->assertDontSee('VM-HOST');
+    }
+
+    public function test_hardware_type_is_bound_to_the_url_for_deep_linking(): void
+    {
+        // The dashboard's hardware-mix tiles link to ?hardwareType=virtual;
+        // the property must hydrate from the query string.
+        Computer::factory()->create(['manufacturer' => 'VMware, Inc.', 'model' => 'VMware7,1', 'hostname' => 'VM-HOST']);
+
+        Livewire::withQueryParams(['hardwareType' => 'virtual'])
+            ->actingAs($this->admin())
+            ->test(ComputersIndex::class)
+            ->assertSet('hardwareType', 'virtual')
+            ->assertSee('VM-HOST');
+    }
 }

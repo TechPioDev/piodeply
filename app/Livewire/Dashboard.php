@@ -94,6 +94,7 @@ class Dashboard extends Component
 
         $fleetUpdates = app(\App\Services\FleetUpdateService::class);
         $updates = $fleetUpdates->pending();   // one pass; byPackage reuses it
+        $fleetHealth = $this->fleetHealth();
 
         $stats = [
             'online'    => Computer::online()->count(),
@@ -117,7 +118,7 @@ class Dashboard extends Component
             'projects'  => Project::count(),
             'packages'  => Package::active()->count(),
             'today'     => Activity::whereDate('created_at', Carbon::today())->count(),
-            'health'    => $this->averageHealth(),
+            'health'    => $fleetHealth['avg'],
         ];
 
         return view('livewire.dashboard', [
@@ -127,6 +128,12 @@ class Dashboard extends Component
             'series'        => $this->deploymentsSeries(),
             'activity'      => Activity::with('causer')->latest()->limit(8)->get(),
             'browserPolicySummary' => app(\App\Services\BrowserPolicyService::class)->fleetSummary(),
+            'deviceHealth'  => [
+                'total'    => array_sum($fleetHealth['tiers']),
+                'tiers'    => $fleetHealth['tiers'],
+                'hardware' => $fleetHealth['hardware'],
+                'issues'   => $this->deviceHealthIssues(),
+            ],
         ])->layout('layouts.app');
     }
 
@@ -177,7 +184,7 @@ class Dashboard extends Component
             // superseded is not a currently failing machine.
             'failed'  => DeploymentJob::whereIn('computer_id', (clone $computers)->pluck('id'))
                 ->onlyLatestPerTask()->where('status', JobStatus::Failed)->count(),
-            'health'  => $this->averageHealth((clone $computers)->pluck('id')->all()),
+            'health'  => $this->fleetHealth((clone $computers)->pluck('id')->all())['avg'],
             // The staff dashboard's "Updates available" tile, scoped to this
             // client — previously the portal had no software-update
             // visibility at all, only agent/deployment state.
@@ -202,15 +209,25 @@ class Dashboard extends Component
 
     /**
      * The fleet's average healthScore() — one number for "how are we
-     * doing", with the weakest machine named so the number is actionable.
-     * Null when there are no machines yet. Counts are preloaded, so this
-     * is one query however large the fleet.
+     * doing", with the weakest machine named so the number is actionable —
+     * plus, in the same pass, two breakdowns the device-health summary
+     * needs: how many machines fall in each health tier (the same
+     * good/needs-attention/unhealthy bands the fleet health PDF report
+     * already uses — score ≥90 / ≥70 / below), and how many are virtual vs
+     * physical hardware. One query however large the fleet, whichever
+     * caller needs which part of it.
      *
      * @param  list<int>|null  $computerIds  confine to these machines (client portal)
-     * @return array{avg: int, count: int, worst: string, worst_score: int}|null
+     * @return array{
+     *   avg: array{avg: int, count: int, worst: string, worst_score: int}|null,
+     *   tiers: array{healthy: int, needs_attention: int, unhealthy: int, unknown: int},
+     *   hardware: array{physical: int, virtual: int, unknown: int},
+     * }
      */
-    private function averageHealth(?array $computerIds = null): ?array
+    private function fleetHealth(?array $computerIds = null): array
     {
+        $empty = ['avg' => null, 'tiers' => ['healthy' => 0, 'needs_attention' => 0, 'unhealthy' => 0, 'unknown' => 0], 'hardware' => ['physical' => 0, 'virtual' => 0, 'unknown' => 0]];
+
         $computers = Computer::query()
             ->when($computerIds !== null, fn ($q) => $q->whereIn('id', $computerIds))
             // project:client_id — healthScore()'s browser check needs the
@@ -223,7 +240,7 @@ class Dashboard extends Component
             ->get();
 
         if ($computers->isEmpty()) {
-            return null;
+            return $empty;
         }
 
         // One query for whichever clients are represented here, not one per
@@ -231,17 +248,70 @@ class Dashboard extends Component
         $fleetBrowserLatest = app(\App\Services\BrowserVersionService::class)
             ->fleetLatestByClient($computers->pluck('id')->all());
 
-        $scored = $computers->map(fn (Computer $c) => [
-            'hostname' => $c->hostname,
-            'score'    => $c->healthScore($fleetBrowserLatest[$c->project->client_id] ?? null)['score'],
-        ]);
+        $tiers = $empty['tiers'];
+        $hardware = $empty['hardware'];
+
+        $scored = $computers->map(function (Computer $c) use ($fleetBrowserLatest, &$tiers, &$hardware) {
+            $hardware[$c->hardwareType()]++;
+
+            $score = $c->healthScore($fleetBrowserLatest[$c->project->client_id] ?? null)['score'];
+            // Never reported at all is a different situation from reporting
+            // and scoring badly — it gets its own "unknown" tier rather than
+            // being folded into "unhealthy" on the strength of one score.
+            $tiers[$c->last_seen_at === null ? 'unknown' : ($score >= 90 ? 'healthy' : ($score >= 70 ? 'needs_attention' : 'unhealthy'))]++;
+
+            return ['hostname' => $c->hostname, 'score' => $score];
+        });
         $worst = $scored->sortBy('score')->first();
 
         return [
-            'avg'         => (int) round($scored->avg('score')),
-            'count'       => $scored->count(),
-            'worst'       => $worst['hostname'],
-            'worst_score' => $worst['score'],
+            'avg' => [
+                'avg'         => (int) round($scored->avg('score')),
+                'count'       => $scored->count(),
+                'worst'       => $worst['hostname'],
+                'worst_score' => $worst['score'],
+            ],
+            'tiers'    => $tiers,
+            'hardware' => $hardware,
+        ];
+    }
+
+    /**
+     * The drill-down rows for the device-health summary — only signals
+     * PioDeploy actually tracks (no antivirus, vulnerability scanning, MDM,
+     * or hypervisor host monitoring exist in this app), each linking to the
+     * same filtered list a fleet operator would already reach for.
+     *
+     * @return list<array{key: string, label: string, count: int, severity: 'unhealthy'|'needs_attention', route: string, params: array}>
+     */
+    private function deviceHealthIssues(): array
+    {
+        return [
+            [
+                'key' => 'offline', 'label' => 'Machines offline',
+                'count' => Computer::offline()->count(), 'severity' => 'unhealthy',
+                'route' => 'computers.index', 'params' => ['connectivity' => 'offline'],
+            ],
+            [
+                'key' => 'failed', 'label' => 'Failed deployments',
+                'count' => DeploymentJob::onlyLatestPerTask()->where('status', JobStatus::Failed)->count(), 'severity' => 'unhealthy',
+                'route' => 'deployments.index', 'params' => ['status' => JobStatus::Failed->value],
+            ],
+            [
+                'key' => 'software_outdated', 'label' => 'Software updates pending',
+                'count' => Computer::softwareStatus('outdated')->count(), 'severity' => 'needs_attention',
+                'route' => 'computers.index', 'params' => ['softwareStatus' => 'outdated'],
+            ],
+            [
+                'key' => 'agent_outdated', 'label' => 'Agents outdated',
+                'count' => Computer::agentOutdated()->count(), 'severity' => 'needs_attention',
+                'route' => 'computers.index', 'params' => ['agentStatus' => 'outdated'],
+            ],
+            [
+                'key' => 'not_ready', 'label' => 'Not ready to deploy',
+                'count' => app(\App\Services\ReadinessService::class)->notReadyCount(), 'severity' => 'needs_attention',
+                'route' => 'computers.index', 'params' => [],
+            ],
         ];
     }
 }

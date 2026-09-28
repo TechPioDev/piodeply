@@ -138,4 +138,99 @@ class DashboardTest extends TestCase
             ->assertSee('Recent activity')
             ->assertSee('created');
     }
+
+    /* ─────────── device health summary ─────────── */
+
+    /**
+     * A never-reported machine is a different situation from one that
+     * reported and scored badly — it gets its own "unknown" tier rather
+     * than being counted as unhealthy on the strength of one low score.
+     */
+    public function test_device_health_tiers_bucket_the_fleet_by_score_and_reporting_state(): void
+    {
+        // Disk fields are set explicitly on every row: the factory's default
+        // free-space range can itself cross healthScore()'s 10%/20% disk
+        // thresholds, which would make these buckets flaky.
+        $safeDisk = ['disk_total_bytes' => 500_000_000_000, 'disk_free_bytes' => 250_000_000_000]; // 50% free -> no deduction
+
+        Computer::factory()->create($safeDisk + [
+            'last_seen_at' => now(), 'agent_version' => Computer::latestAgentVersion(),
+            'secure_boot' => true, 'tpm_enabled' => true,
+        ]); // score 100 -> healthy
+
+        $needsAttention = Computer::factory()->create($safeDisk + [
+            'last_seen_at' => now(), 'agent_version' => '1.0.0', // -10 outdated agent
+            'secure_boot' => true, 'tpm_enabled' => true,
+        ]);
+        DeploymentJob::factory()->failed()->create(['computer_id' => $needsAttention->id]); // -10 -> score 80, needs attention
+
+        Computer::factory()->create($safeDisk + [
+            'last_seen_at' => now()->subDays(3), // -25 offline
+            'secure_boot' => false, 'tpm_enabled' => false, // -10 -10
+        ]); // score 55 -> unhealthy
+
+        Computer::factory()->neverSeen()->create(); // unknown
+
+        Livewire::actingAs($this->admin())
+            ->test(Dashboard::class)
+            ->assertViewHas('deviceHealth', fn ($dh) => $dh['total'] === 4
+                && $dh['tiers']['healthy'] === 1
+                && $dh['tiers']['needs_attention'] === 1
+                && $dh['tiers']['unhealthy'] === 1
+                && $dh['tiers']['unknown'] === 1)
+            ->assertSee('Device health summary');
+    }
+
+    public function test_device_health_hardware_mix_splits_virtual_from_physical(): void
+    {
+        Computer::factory()->create(['manufacturer' => 'VMware, Inc.', 'model' => 'VMware7,1']);
+        Computer::factory()->count(2)->create(['manufacturer' => 'Dell Inc.', 'model' => 'OptiPlex 7010']);
+        Computer::factory()->create(['manufacturer' => null, 'model' => null]);
+
+        Livewire::actingAs($this->admin())
+            ->test(Dashboard::class)
+            ->assertViewHas('deviceHealth', fn ($dh) => $dh['hardware']['virtual'] === 1
+                && $dh['hardware']['physical'] === 2
+                && $dh['hardware']['unknown'] === 1)
+            ->assertSee('Virtual machines')
+            ->assertSee('Physical machines');
+    }
+
+    /** Every issue row must be a real, already-existing signal with a working drill-down link — never a fabricated capability. */
+    public function test_device_health_issue_counts_match_the_fleet_and_link_to_the_filtered_list(): void
+    {
+        Computer::factory()->offline()->create(['hostname' => 'OFFLINE-PC']);
+        Computer::factory()->online()->create(['hostname' => 'ONLINE-PC']);
+
+        Livewire::actingAs($this->admin())
+            ->test(Dashboard::class)
+            ->assertViewHas('deviceHealth', function ($dh) {
+                $offlineIssue = collect($dh['issues'])->firstWhere('key', 'offline');
+
+                return $offlineIssue['count'] === 1
+                    && $offlineIssue['route'] === 'computers.index'
+                    && $offlineIssue['params'] === ['connectivity' => 'offline'];
+            });
+
+        // The link actually filters the list down to the offline machine.
+        Livewire::actingAs($this->admin())
+            ->test(\App\Livewire\Computers\ComputersIndex::class)
+            ->set('connectivity', 'offline')
+            ->assertSee('OFFLINE-PC')
+            ->assertDontSee('ONLINE-PC');
+    }
+
+    public function test_device_health_does_not_claim_capabilities_pioDeploy_does_not_have(): void
+    {
+        Computer::factory()->create();
+
+        Livewire::actingAs($this->admin())
+            ->test(Dashboard::class)
+            ->assertDontSee('NMS')
+            ->assertDontSee('VMware hosts down')
+            ->assertDontSee('Hyper-V hosts down')
+            ->assertDontSee('antivirus')
+            ->assertDontSee('vulnerabilities')
+            ->assertDontSee('Lost mode');
+    }
 }

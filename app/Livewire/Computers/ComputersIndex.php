@@ -32,11 +32,16 @@ class ComputersIndex extends Component
     #[Url]
     public string $softwareStatus = '';
 
+    // '', 'virtual', 'physical' — bound to the URL for the same reason:
+    // the dashboard's device-health hardware-mix tiles deep-link here.
+    #[Url]
+    public string $hardwareType = '';
+
     public bool $showTrashed = false;
 
     public function updating($name, $value): void
     {
-        if (in_array($name, ['search', 'clientId', 'projectId', 'connectivity', 'agentStatus', 'softwareStatus', 'showTrashed'], true)) {
+        if (in_array($name, ['search', 'clientId', 'projectId', 'connectivity', 'agentStatus', 'softwareStatus', 'hardwareType', 'showTrashed'], true)) {
             $this->resetPage();
         }
     }
@@ -162,6 +167,7 @@ class ComputersIndex extends Component
                 agentStatus: $this->agentStatus,
                 allowedProjectIds: auth()->user()->visibleProjectIds(),
                 softwareStatus: $this->softwareStatus,
+                hardwareType: $this->hardwareType,
             ),
             'clients'  => $tenantId === null
                 ? \App\Models\Client::orderBy('company_name')->get(['id', 'company_name'])

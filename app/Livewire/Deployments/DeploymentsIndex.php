@@ -4,6 +4,7 @@ namespace App\Livewire\Deployments;
 
 use App\Models\DeploymentJob;
 use App\Services\DeploymentService;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use App\Livewire\Concerns\WithCompactPagination;
 
@@ -13,6 +14,9 @@ class DeploymentsIndex extends Component
 
     public string $search = '';
 
+    // Bound to the URL so the dashboard's "Failed deployments" health-issue
+    // row can deep-link straight to the filtered list (?status=failed).
+    #[Url]
     public string $status = '';
 
     public string $action = '';

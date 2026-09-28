@@ -23,6 +23,7 @@ class EloquentComputerRepository extends BaseRepository implements ComputerRepos
         string $agentStatus = '',
         ?array $allowedProjectIds = null,
         string $softwareStatus = '',
+        string $hardwareType = '',
     ): LengthAwarePaginator {
         return $this->query()
             ->with('project.client')
@@ -40,6 +41,7 @@ class EloquentComputerRepository extends BaseRepository implements ComputerRepos
             ->when($agentStatus === 'outdated', fn ($q) => $q->agentOutdated())
             ->when($agentStatus === 'current', fn ($q) => $q->where('agent_version', Computer::latestAgentVersion()))
             ->when($softwareStatus !== '', fn ($q) => $q->softwareStatus($softwareStatus))
+            ->when($hardwareType !== '', fn ($q) => $q->hardwareType($hardwareType))
             ->orderBy('hostname')
             ->paginate($perPage);
     }
