@@ -64,7 +64,11 @@
                                     <a href="{{ route('policies.show', $policy) }}" class="pd-link">{{ $policy->label() }}</a>
                                 </td>
                                 <td class="px-6 py-3 whitespace-nowrap text-slate-600 text-sm">
-                                    {{ $policy->project->client->company_name }} / {{ $policy->project->name }}
+                                    @if ($policy->scope_type === 'project')
+                                        {{ $policy->project?->client?->company_name }} / {{ $policy->project?->name }}
+                                    @else
+                                        {{ $policy->scopeName() }}
+                                    @endif
                                 </td>
                                 <td class="px-6 py-3 whitespace-nowrap text-slate-600 text-sm">{{ $policy->mode->label() }}</td>
                                 <td class="px-6 py-3 whitespace-nowrap text-right text-slate-700">{{ $summary['target'] }}</td>

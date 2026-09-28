@@ -4,7 +4,7 @@
             <div>
                 <h2 class="font-semibold text-xl text-slate-800 leading-tight">{{ $policy->label() }}</h2>
                 <p class="text-sm text-slate-500 mt-0.5">
-                    {{ $policy->project->name }} · {{ $policy->project->client->company_name }}
+                    {{ $policy->scopeName() }}
                     · {{ $policy->mode->label() }} · {{ $policy->priorityLabel() }} priority
                     · Window: {{ $policy->windowLabel() }}
                     @if ($policy->test_delay_days > 0 || $policy->production_delay_days > 0)

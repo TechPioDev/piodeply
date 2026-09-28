@@ -66,8 +66,12 @@
                                     </p>
                                 </td>
                                 <td class="px-6 py-3 whitespace-nowrap text-slate-600">
-                                    {{ $policy->project->name }}
-                                    <p class="text-xs text-slate-400">{{ $policy->project->client->company_name }}</p>
+                                    @if ($policy->scope_type === 'project')
+                                        {{ $policy->project?->name }}
+                                        <p class="text-xs text-slate-400">{{ $policy->project?->client?->company_name }}</p>
+                                    @else
+                                        {{ $policy->scopeName() }}
+                                    @endif
                                 </td>
                                 <td class="px-6 py-3 whitespace-nowrap">
                                     @php

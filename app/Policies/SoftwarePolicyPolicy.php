@@ -15,8 +15,16 @@ class SoftwarePolicyPolicy
 
     public function view(User $user, SoftwarePolicy $policy): bool
     {
-        return $user->can(Permission::PoliciesView->value)
-            && ($user->tenantClientId() === null || $user->tenantClientId() === $policy->project->client_id);
+        if (! $user->can(Permission::PoliciesView->value)) {
+            return false;
+        }
+
+        $tenantId = $user->tenantClientId();
+
+        // Tenants may open a policy when it can affect their machines — the
+        // same rule the list uses, so a listed row is always openable.
+        return $tenantId === null
+            || SoftwarePolicy::visibleTo($tenantId)->whereKey($policy->id)->exists();
     }
 
     public function create(User $user): bool

@@ -5,6 +5,8 @@ namespace App\Livewire\Policies;
 use App\Enums\PolicyAction;
 use App\Enums\PolicyMode;
 use App\Enums\PolicyVersionMode;
+use App\Models\Computer;
+use App\Models\ComputerGroup;
 use App\Models\Package;
 use App\Models\Project;
 use App\Models\SoftwarePolicy;
@@ -14,6 +16,16 @@ use Livewire\Component;
 class PolicyForm extends Component
 {
     public ?SoftwarePolicy $policy = null;
+
+    /**
+     * Assignment: what kind of thing the policy targets. 'project' is by far
+     * the common case and keeps its own dedicated property below (existing
+     * tests and call sites already speak project_id directly); scope_id is
+     * only ever read for the two new kinds.
+     */
+    public string $scope_type = 'project';
+
+    public ?int $scope_id = null;
 
     public ?int $project_id = null;
 
@@ -59,7 +71,9 @@ class PolicyForm extends Component
         if ($policy !== null && $policy->exists) {
             $this->authorize('update', $policy);
             $this->policy = $policy;
+            $this->scope_type = $policy->scope_type;
             $this->project_id = $policy->project_id;
+            $this->scope_id = $policy->scope_type === 'project' ? null : $policy->scope_id;
             $this->package_id = $policy->package_id;
             $this->action = $policy->action->value;
             $this->mode = $policy->mode->value;
@@ -75,6 +89,13 @@ class PolicyForm extends Component
         } else {
             $this->authorize('create', SoftwarePolicy::class);
         }
+    }
+
+    /** Changing the scope kind invalidates whatever the previous kind had picked. */
+    public function updatedScopeType(): void
+    {
+        $this->project_id = null;
+        $this->scope_id = null;
     }
 
     public function addPackage(int $packageId): void
@@ -97,8 +118,16 @@ class PolicyForm extends Component
     {
         $this->authorize($this->policy ? 'update' : 'create', $this->policy ?? SoftwarePolicy::class);
 
+        $scopeIdRule = match ($this->scope_type) {
+            'group'    => ['required', 'integer', Rule::exists('computer_groups', 'id')],
+            'computer' => ['required', 'integer', Rule::exists('computers', 'id')],
+            default    => ['nullable'],
+        };
+
         $validated = $this->validate([
-            'project_id'      => ['required', 'integer', Rule::exists('projects', 'id')->withoutTrashed()],
+            'scope_type'      => ['required', Rule::in(SoftwarePolicy::SCOPE_TYPES)],
+            'project_id'      => [Rule::requiredIf($this->scope_type === 'project'), 'nullable', 'integer', Rule::exists('projects', 'id')->withoutTrashed()],
+            'scope_id'        => $scopeIdRule,
             'action'          => ['required', Rule::in(PolicyAction::values())],
             'mode'            => ['required', Rule::in(PolicyMode::values())],
             'version_mode'    => ['required', Rule::in(PolicyVersionMode::values())],
@@ -115,6 +144,7 @@ class PolicyForm extends Component
             'desired_version.regex' => 'Versions look like 24.09 or 139.0.7258.67.',
         ], [
             'project_id'      => project_term_lower(),
+            'scope_id'        => 'target',
             'desired_version' => 'version',
             'window_start'    => 'window start',
             'window_end'      => 'window end',
@@ -138,15 +168,34 @@ class PolicyForm extends Component
         $versionMode = PolicyVersionMode::from($validated['version_mode']);
         $action = PolicyAction::from($validated['action']);
 
-        // Tenancy: the project must be one this user may actually touch —
-        // hiding it from the dropdown is presentation, refusing the id is
-        // the boundary. A tenant policy for another client's project is
-        // never created.
-        $targetProject = Project::visibleTo(auth()->user())->find($validated['project_id']);
-        if ($targetProject === null) {
-            $this->addError('project_id', 'That '.project_term_lower().' is not one you can manage.');
+        // Tenancy: whatever this policy's scope reaches must be machines the
+        // user may actually touch — hiding a foreign target from the picker
+        // is presentation, refusing the id is the boundary. A group or a
+        // single machine can belong to another client entirely (a group by
+        // design can span clients), so this cannot be a single-project
+        // lookup the way it used to be: every distinct project the scope
+        // actually reaches is checked, both for tenancy and, below, for
+        // whether the package may run there at all.
+        $tenantId = auth()->user()->tenantClientId();
 
-            return null;
+        if ($this->scope_type === 'project') {
+            $targetProject = Project::visibleTo(auth()->user())->find($validated['project_id']);
+            if ($targetProject === null) {
+                $this->addError('project_id', 'That '.project_term_lower().' is not one you can manage.');
+
+                return null;
+            }
+            $targetProjects = collect([$targetProject]);
+        } else {
+            $probe = new SoftwarePolicy(['scope_type' => $this->scope_type, 'scope_id' => $validated['scope_id']]);
+            $targetProjectIds = $probe->targetComputers()->pluck('project_id')->unique();
+            $targetProjects = Project::withTrashed()->whereIn('id', $targetProjectIds)->get();
+
+            if ($tenantId !== null && $targetProjects->contains(fn (Project $p) => $p->client_id !== $tenantId)) {
+                $this->addError('scope_id', 'That target includes machines outside your account.');
+
+                return null;
+            }
         }
 
         // Editing keeps its single package; creating takes the multi-select
@@ -195,10 +244,18 @@ class PolicyForm extends Component
         }
 
         foreach ($packages as $package) {
-            // A private package only ever governs its own client's projects —
-            // the deploy funnel enforces this too, but failing here is a form
-            // error instead of a queued job that can never run.
-            if (! $package->isUsableFor($targetProject)) {
+            // A private package only ever governs its own client's projects.
+            // Enforcement's own queue() call refuses this too, per computer —
+            // but uncaught, since one already-checked-deployable package is
+            // assumed safe by every caller (PolicyService::enforceOn() has
+            // its own comment on exactly this: one throw here would abort
+            // enforcement for every other computer and policy in the same
+            // run). A single-project scope made one check equivalent to
+            // that per-computer one; a group or machine can reach several
+            // projects at once, so every one of them is checked here, not
+            // just the first.
+            $unusable = $targetProjects->first(fn (Project $p) => ! $package->isUsableFor($p));
+            if ($unusable !== null) {
                 $this->addError('packageIds', "\"{$package->name}\" is private to another client and cannot be used here.");
 
                 return null;
@@ -212,6 +269,12 @@ class PolicyForm extends Component
             }
         }
 
+        // Normalise the scope: a project scope keeps project_id filled (the
+        // relation, reports, and every legacy reader still expect it); a
+        // group or machine scope has no single project, so it stays null.
+        $validated['scope_id'] = $this->scope_type === 'project' ? (int) $validated['project_id'] : (int) $validated['scope_id'];
+        $validated['project_id'] = $this->scope_type === 'project' ? $validated['project_id'] : null;
+
         if ($this->policy) {
             // A new desired version is a new rollout — rings restage from now.
             if ($validated['desired_version'] !== $this->policy->desired_version) {
@@ -223,13 +286,14 @@ class PolicyForm extends Component
             return $this->redirectRoute('policies.index');
         }
 
-        // One rule per project+package+action — duplicates would double-queue.
+        // One rule per scope+package+action — duplicates would double-queue.
         // In a multi-select, existing rules are skipped and reported, not
         // errors: "make these 10 apps present" should do the 7 that are new.
         $created = 0;
         $skipped = [];
         foreach ($packages as $package) {
-            $duplicate = SoftwarePolicy::where('project_id', $validated['project_id'])
+            $duplicate = SoftwarePolicy::where('scope_type', $validated['scope_type'])
+                ->where('scope_id', $validated['scope_id'])
                 ->where('package_id', $package->id)
                 ->where('action', $validated['action'])
                 ->exists();
@@ -280,6 +344,10 @@ class PolicyForm extends Component
 
         return view('livewire.policies.policy-form', [
             'projects'         => Project::visibleTo($user)->orderBy('name')->get(['id', 'name']),
+            'groups'           => ComputerGroup::orderBy('name')->get(['id', 'name']),
+            'computerChoices'  => $this->scope_type === 'computer'
+                ? Computer::visibleTo($user)->orderBy('hostname')->limit(100)->get(['id', 'hostname'])
+                : collect(),
             'packages'         => Package::active()->visibleTo($user)->orderBy('name')->get(['id', 'name', 'installer_type']),
             'selectedPackages' => $selected,
             'packageChoices'   => $choices,

@@ -38,7 +38,7 @@ class SendDriftDigest extends Command
                 $summary['non_compliant'] > 0 ? "{$summary['non_compliant']} drifted" : null,
             ]);
 
-            return [$row['policy']->label() . ' (' . $row['policy']->project->name . ')' => implode(', ', $parts) . " — {$summary['percent']}% compliant"];
+            return [$row['policy']->label() . ' (' . $row['policy']->scopeName() . ')' => implode(', ', $parts) . " — {$summary['percent']}% compliant"];
         })->all();
 
         $notifications->notify(

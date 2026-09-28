@@ -52,7 +52,7 @@ class PolicyService
 
         $excluded = $policy->excludedComputers()->pluck('computers.id')->all();
 
-        $computers = $policy->project->computers()->whereNotIn('id', $excluded)->get();
+        $computers = $policy->targetComputers()->whereNotIn('id', $excluded)->get();
 
         // Three set-based queries answer what the per-computer path would ask
         // the database 15-20 times per machine — the difference between a
@@ -83,8 +83,8 @@ class PolicyService
     {
         $queued = 0;
 
-        $policies = SoftwarePolicy::with('package')
-            ->where('project_id', $computer->project_id)
+        $policies = SoftwarePolicy::scopeQueryForComputer($computer)
+            ->with('package')
             ->where('mode', \App\Enums\PolicyMode::Enforce)
             ->get();
 
@@ -284,7 +284,7 @@ class PolicyService
     {
         $excluded = $policy->excludedComputers()->pluck('computers.id')->flip();
 
-        return $policy->project->computers()->orderBy('hostname')->get()
+        return $policy->targetComputers()->orderBy('hostname')->get()
             ->map(fn (Computer $computer) => $this->evaluate($policy, $computer, $excluded->has($computer->id)));
     }
 
@@ -297,8 +297,8 @@ class PolicyService
      */
     public function explainFor(Computer $computer): Collection
     {
-        return SoftwarePolicy::with('package')
-            ->where('project_id', $computer->project_id)
+        return SoftwarePolicy::scopeQueryForComputer($computer)
+            ->with('package')
             ->get()
             ->map(function (SoftwarePolicy $policy) use ($computer) {
                 // Two reasons nothing will ever happen, which the compliance
@@ -471,10 +471,7 @@ class PolicyService
     {
         $policies = SoftwarePolicy::query()
             ->where('mode', '!=', \App\Enums\PolicyMode::Disabled)
-            ->when($tenantClientId !== null, fn ($q) => $q->whereHas(
-                'project',
-                fn ($p) => $p->withTrashed()->where('client_id', $tenantClientId)
-            ))
+            ->visibleTo($tenantClientId)
             ->get();
 
         $totals = ['policies' => $policies->count(), 'target' => 0, 'compliant' => 0, 'compliant_outdated' => 0];

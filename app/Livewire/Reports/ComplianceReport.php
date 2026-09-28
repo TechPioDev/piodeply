@@ -22,10 +22,7 @@ class ComplianceReport extends Component
         return SoftwarePolicy::query()
             ->with(['project.client', 'package'])
             ->where('mode', '!=', \App\Enums\PolicyMode::Disabled)
-            ->when($tenantId !== null, fn ($q) => $q->whereHas(
-                'project',
-                fn ($p) => $p->withTrashed()->where('client_id', $tenantId)
-            ))
+            ->visibleTo($tenantId)
             ->when($this->projectFilter !== '', fn ($q) => $q->where('project_id', $this->projectFilter))
             ->orderBy('project_id')->orderBy('priority')
             ->get();
@@ -69,8 +66,8 @@ class ComplianceReport extends Component
                 fn ($value) => '"' . str_replace('"', '""', (string) $value) . '"',
                 [
                     $row['policy']->label(),
-                    $row['policy']->project->client->company_name,
-                    $row['policy']->project->name,
+                    $row['policy']->project?->client?->company_name ?? '',
+                    $row['policy']->scopeName(),
                     $row['policy']->action->label(),
                     $row['policy']->mode->label(),
                     $summary['target'], $summary['compliant'], $summary['compliant_outdated'], $summary['pending'], $summary['scheduled'],

@@ -17,10 +17,7 @@ class PoliciesController extends IntegrationController
         return SoftwarePolicyResource::collection(
             SoftwarePolicy::query()
                 ->with(['project', 'package'])
-                ->when($this->tenantId($request) !== null, fn ($q) => $q->whereHas(
-                    'project',
-                    fn ($p) => $p->withTrashed()->where('client_id', $this->tenantId($request))
-                ))
+                ->visibleTo($this->tenantId($request))
                 ->when($request->filled('project_id'), fn ($q) => $q->where('project_id', $request->integer('project_id')))
                 ->orderBy('priority')
                 ->paginate(min(100, (int) $request->integer('per_page', 25)))

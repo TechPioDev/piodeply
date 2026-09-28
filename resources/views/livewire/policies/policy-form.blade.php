@@ -78,16 +78,45 @@
                             <h3 class="text-sm font-semibold text-slate-700 uppercase tracking-wider">2 · Where &amp; what</h3>
 
                             <div>
-                                <x-label for="project_id" :value="project_term()" />
-                                <select id="project_id" wire:model="project_id"
-                                        class="mt-1 block w-full border-slate-300 focus:border-teal-500 focus:ring-teal-500 rounded-md shadow-sm">
-                                    <option value="">— select {{ project_term_lower() }} —</option>
-                                    @foreach ($projects as $project)
-                                        <option value="{{ $project->id }}">{{ $project->name }}</option>
+                                <x-label value="Target type" />
+                                <div class="mt-1 flex flex-wrap gap-4">
+                                    @foreach (['project' => project_term(), 'group' => 'Device group', 'computer' => 'Specific machine'] as $value => $label)
+                                        <label class="inline-flex items-center gap-1.5 text-sm text-slate-600 select-none">
+                                            <input type="radio" wire:model.live="scope_type" value="{{ $value }}"
+                                                   class="border-slate-300 text-teal-600 focus:ring-teal-500">
+                                            {{ $label }}
+                                        </label>
                                     @endforeach
-                                </select>
-                                <x-input-error for="project_id" class="mt-1" />
+                                </div>
                             </div>
+
+                            @if ($scope_type === 'project')
+                                <div>
+                                    <x-label for="project_id" :value="project_term()" />
+                                    <select id="project_id" wire:model="project_id"
+                                            class="mt-1 block w-full border-slate-300 focus:border-teal-500 focus:ring-teal-500 rounded-md shadow-sm">
+                                        <option value="">— select {{ project_term_lower() }} —</option>
+                                        @foreach ($projects as $project)
+                                            <option value="{{ $project->id }}">{{ $project->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    <x-input-error for="project_id" class="mt-1" />
+                                </div>
+                            @elseif ($scope_type === 'group')
+                                <div>
+                                    <x-label for="scope_id" value="Device group" />
+                                    <x-searchable-select wire:model="scope_id" placeholder="— select group —"
+                                        :options="$groups->map(fn ($g) => ['value' => $g->id, 'label' => $g->name])->values()->all()" />
+                                    <x-input-error for="scope_id" class="mt-1" />
+                                </div>
+                            @else
+                                <div>
+                                    <x-label for="scope_id" value="Machine" />
+                                    <x-searchable-select wire:model="scope_id" placeholder="— select machine —"
+                                        :options="$computerChoices->map(fn ($c) => ['value' => $c->id, 'label' => $c->hostname])->values()->all()" />
+                                    <x-input-error for="scope_id" class="mt-1" />
+                                </div>
+                            @endif
 
                             <div>
                                 <x-label for="action" value="Rule" />

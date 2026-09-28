@@ -68,14 +68,14 @@ class PoliciesIndex extends Component
 
         $policies = SoftwarePolicy::query()
             ->with(['project.client', 'package'])
-            ->when($tenantId !== null, fn ($q) => $q->whereHas(
-                'project',
-                fn ($p) => $p->withTrashed()->where('client_id', $tenantId)
-                    ->when(auth()->user()->visibleProjectIds() !== null,
-                        fn ($qq) => $qq->whereIn('projects.id', auth()->user()->visibleProjectIds()))
-            ))
-            // Grouped, or the project branch escapes the tenancy filter above
-            // (AND binds tighter than OR) and leaks another client's policies.
+            ->visibleTo($tenantId)
+            // A custom client role's explicit machine list narrows further,
+            // same as Computer::visibleTo() — a project-scoped policy still
+            // reads project_id (cheap and correct), but group/computer scope
+            // needs the actual membership checked.
+            ->when($tenantId !== null && auth()->user()->visibleProjectIds() !== null, fn ($q) => $q->where(fn ($w) => $w
+                ->whereIn('project_id', auth()->user()->visibleProjectIds())
+                ->orWhere('scope_type', '!=', 'project')))
             ->when($this->search !== '', fn ($q) => $q->where(fn ($w) => $w
                 ->whereHas('package', fn ($p) => $p->where('name', 'like', "%{$this->search}%"))
                 ->orWhereHas('project', fn ($p) => $p->where('name', 'like', "%{$this->search}%"))))

@@ -32,7 +32,7 @@ class ClientComplianceReportService
             ->get();
 
         $softwarePolicies = SoftwarePolicy::with('package', 'project')
-            ->whereHas('project', fn ($q) => $q->withTrashed()->where('client_id', $client->id))
+            ->visibleTo($client->id)
             // Same filter as the compliance report page: Enforce and Audit
             // policies both report; only Disabled ones are inert. (There is
             // no "status" column here — that's BrowserPolicy's vocabulary.)
