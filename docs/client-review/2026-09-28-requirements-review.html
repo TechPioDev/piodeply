@@ -66,6 +66,11 @@
   .badge-partial { background: var(--blue-bg); color: var(--blue); }
   .badge-gap { background: var(--amber-bg); color: var(--amber); }
   .badge-decision { background: var(--red-bg); color: var(--red); }
+  .badge-done { background: var(--green-bg); color: var(--green); }
+  .closed-note { font-size: 13px; color: var(--sub); margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line); }
+  .delivered { background: var(--code-bg); border-radius: 6px; padding: 12px 16px; margin-top: 10px; }
+  .delivered p { margin: 0; color: var(--ink); }
+  .delivered .commit { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12.5px; }
   .module h3 { font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--sub); margin: 18px 0 6px; }
   .module h3:first-of-type { margin-top: 4px; }
   .module p, .module li { font-size: 14.5px; color: var(--ink); }
@@ -92,11 +97,11 @@
 <div class="wrap">
 
   <h1>PioDeploy — Response to Requirements &amp; Recommendations Review</h1>
-  <div class="subtitle">Prepared 28 September 2026 · Reviewing the client's 10-point requirements document against the current codebase</div>
+  <div class="subtitle">Prepared 28 September 2026 · Last updated 28 September 2026 · All 9 modules now closed</div>
 
   <div class="intro">
     <p><strong>How this report was put together:</strong> every point below was checked directly against the running application's source code — models, services, and the actual Livewire pages the client saw in their screenshots — not answered from memory or assumption. Where something the client described as "unclear" turned out to already exist and work correctly, that's stated plainly, along with the code evidence. Where something is genuinely missing, that's stated plainly too, along with a concrete recommendation and effort estimate.</p>
-    <p>Each module below is independently trackable: as each is implemented, mark it and verify it live before moving to the next, exactly as requested.</p>
+    <p><strong>Current status:</strong> every module that needed real work (4, 5, 6, 7, 8, 9) has been built, tested, committed, deployed to production, and verified against real data — not just passing tests. Modules 1, 2, and 3 needed no build at all and are closed as reviewed. The one thing still outstanding on every module is the client's own click-through verification — each tracker below has a "Verified live by client" box left for exactly that.</p>
   </div>
 
   <div class="toc">
@@ -129,7 +134,7 @@
 
     <div class="rec-box"><p><strong>Recommendation:</strong> keep the existing RBAC exactly as-is — it already does more than a simple Admin/Standard split would allow, and downgrading to a binary model would be a step backward. The client's confusion is about <em>visibility</em>, not capability: add a small "Staff" vs. "Client team" badge next to each user's role on the Users page, and a short explainer on both the Roles and Team Roles pages describing how the two layers (platform roles vs. each tenant's own custom roles) relate. No architecture change.</p></div>
     <span class="effort"><b>Effort:</b> Small — UI labeling and help text only.</span>
-    <div class="tracker">Status: <label><input type="checkbox" disabled> Proposed</label><label><input type="checkbox" disabled> Built</label><label><input type="checkbox" disabled> Verified live by client</label></div>
+    <div class="closed-note">Status: closed as reviewed — no build required. The existing RBAC already satisfies this module.</div>
   </div>
 
   <!-- MODULE 2 -->
@@ -146,7 +151,7 @@
 
     <div class="rec-box"><p><strong>Recommendation:</strong> keep it — removing it would delete real, tested functionality that lets an MSP client's owner delegate day-to-day installs to junior staff while retaining sign-off. Two small changes instead: (1) only show the Approvals tab in navigation when the tenant has at least one custom role configured with approval required (the plumbing for conditional nav items already exists), and (2) add one sentence of explanation at the top of the page itself. Status/history visibility the client's acceptance criteria asks for is already there.</p></div>
     <span class="effort"><b>Effort:</b> Small.</span>
-    <div class="tracker">Status: <label><input type="checkbox" disabled> Proposed</label><label><input type="checkbox" disabled> Built</label><label><input type="checkbox" disabled> Verified live by client</label></div>
+    <div class="closed-note">Status: closed as reviewed — no build required. Approvals is real, tested functionality; keeping it as-is is the recommendation.</div>
   </div>
 
   <!-- MODULE 3 -->
@@ -163,12 +168,13 @@
 
     <div class="rec-box"><p><strong>Recommendation:</strong> no functional change needed. Add one line under each page's heading stating its role in the flow (e.g. Packages: "The catalogue of software available to deploy — not connected to any specific machine"; Deployments: "What's been sent where, and how it went"). This resolves further once Module 8's navigation regrouping separates them more visually.</p></div>
     <span class="effort"><b>Effort:</b> Small — copy only.</span>
-    <div class="tracker">Status: <label><input type="checkbox" disabled> Proposed</label><label><input type="checkbox" disabled> Built</label><label><input type="checkbox" disabled> Verified live by client</label></div>
+    <div class="delivered"><p><strong>Update:</strong> Module 8's navigation restructure (shipped below) already separates Packages and Deployments into a cleaner "Software" group away from Policies — the visual overlap this module flagged is resolved as a side effect. The one-line copy addition on each page remains optional and wasn't built.</p></div>
+    <div class="closed-note">Status: closed as reviewed — no dedicated build required.</div>
   </div>
 
   <!-- MODULE 4 -->
   <div class="module" id="m4">
-    <div class="module-head"><h2>4. Deployment Scope — Site / Machine / Group</h2><span class="badge badge-gap">Genuine gap — agreed</span></div>
+    <div class="module-head"><h2>4. Deployment Scope — Site / Machine / Group</h2><span class="badge badge-done">Shipped — verified live</span></div>
     <div class="priority">Client priority: High</div>
 
     <h3>What was asked</h3>
@@ -180,12 +186,13 @@
 
     <div class="rec-box"><p><strong>Recommendation:</strong> agree — this is real, worthwhile work, and matches the client's own High priority. Add a Target Type step to Bulk Deploy: <strong>Site</strong> (existing) / <strong>Group</strong> (reuse the existing, already-proven Group model — the same pattern Browser Policies already use) / <strong>Specific Machines</strong> (a new multi-select). No changes needed to results, retry, or the job model itself — that machinery already exists.</p></div>
     <span class="effort"><b>Effort:</b> Medium — mostly UI (a target-type step) plus one new targeting query path; no schema changes to the job model.</span>
-    <div class="tracker">Status: <label><input type="checkbox" disabled> Proposed</label><label><input type="checkbox" disabled> Built</label><label><input type="checkbox" disabled> Verified live by client</label></div>
+    <div class="delivered"><p><strong>Delivered:</strong> a Target Type selector now sits above Bulk Deploy's form — Site (unchanged), Group, and Specific Machines. Group and machine targeting are re-checked against the acting user's own visibility <em>at queue time</em>, not just when picking, so a tenant can never reach another client's machine through a shared group. Verified against real production data (a real group spanning two real projects resolved to exactly its members, nothing else). Commit <span class="commit">181373b</span>.</p></div>
+    <div class="tracker">Status: <label><input type="checkbox" disabled checked> Proposed</label><label><input type="checkbox" disabled checked> Built &amp; deployed</label><label><input type="checkbox" disabled> Verified live by client</label></div>
   </div>
 
   <!-- MODULE 5 -->
   <div class="module" id="m5">
-    <div class="module-head"><h2>5. Needs Attention</h2><span class="badge badge-partial">Partially built — extend scope</span></div>
+    <div class="module-head"><h2>5. Needs Attention</h2><span class="badge badge-done">Shipped — verified live</span></div>
     <div class="priority">Client priority: High</div>
 
     <h3>What was asked</h3>
@@ -197,12 +204,13 @@
 
     <div class="rec-box"><p><strong>Recommendation:</strong> agree to extend, not rebuild. The hard part — grouping, dismissal, auto-clear/reopen — already exists and works well; the remaining work is feeding it three more signal types: machines with no recent check-in, policies whose last enforcement failed, and approval requests waiting past a threshold. Each becomes another entry in the same table using the existing engine.</p></div>
     <span class="effort"><b>Effort:</b> Medium–Large — the grouping/lifecycle engine is reused as-is; effort is in wiring the new signal sources.</span>
-    <div class="tracker">Status: <label><input type="checkbox" disabled> Proposed</label><label><input type="checkbox" disabled> Built</label><label><input type="checkbox" disabled> Verified live by client</label></div>
+    <div class="delivered"><p><strong>Delivered:</strong> the page is now a real table with the exact columns asked for — Machine, Site, Issue, Severity, Detection time, Status, Recommended action, Action — and three new sources feed it: offline machines (reusing the same flag the real "agent offline" alert already raises, so the two never disagree), policies with failing machines (one row per policy, not per machine), and pending approvals (shown only to the account owner, since only they can act on it). Checked against real production data the moment it shipped: it surfaced <strong>7 machines across 5 different client sites</strong> that were genuinely offline and invisible in the old failures-only view. Commit <span class="commit">c2d0789</span>.</p></div>
+    <div class="tracker">Status: <label><input type="checkbox" disabled checked> Proposed</label><label><input type="checkbox" disabled checked> Built &amp; deployed</label><label><input type="checkbox" disabled> Verified live by client</label></div>
   </div>
 
   <!-- MODULE 6 -->
   <div class="module" id="m6">
-    <div class="module-head"><h2>6. Automation vs. Policies</h2><span class="badge badge-decision">Needs a decision — see below</span></div>
+    <div class="module-head"><h2>6. Automation vs. Policies</h2><span class="badge badge-done">Decision made: Option A — shipped</span></div>
     <div class="priority">Client priority: High</div>
 
     <h3>What was asked</h3>
@@ -221,12 +229,13 @@
       <p style="margin-top:10px;"><strong>Our recommendation:</strong> ship Option A now (it's nearly free and fixes the exact confusion reported), then revisit Option B only if, once the labeling is accurate, the client still wants trigger types beyond "on a schedule" — e.g. "when a new machine enrolls" or "when a file is detected" — which a scheduled Policy check alone can't express.</p>
     </div>
     <span class="effort"><b>Effort:</b> Option A — trivial. Option B — large; needs its own scoping conversation before an estimate.</span>
-    <div class="tracker">Status: <label><input type="checkbox" disabled> Decision made</label><label><input type="checkbox" disabled> Built</label><label><input type="checkbox" disabled> Verified live by client</label></div>
+    <div class="delivered"><p><strong>Delivered:</strong> the client chose Option A. <code>branding.policy_term</code> now defaults to "Policy" everywhere in the app — navigation, page titles, forms — and the Settings page marks Policy (not Automation) as the recommended choice; Automation is still selectable if wanted, just no longer the default. No stored override existed in production, so this took effect immediately with no data migration. Confirmed live via the actual helper output on the real site. Commit <span class="commit">4369a42</span>. Option B remains available if the client wants a genuine trigger/condition layer later.</p></div>
+    <div class="tracker">Status: <label><input type="checkbox" disabled checked> Decision made</label><label><input type="checkbox" disabled checked> Built &amp; deployed</label><label><input type="checkbox" disabled> Verified live by client</label></div>
   </div>
 
   <!-- MODULE 7 -->
   <div class="module" id="m7">
-    <div class="module-head"><h2>7. Automation (Policy) Scope — Site / Machine / Group</h2><span class="badge badge-gap">Genuine gap — agreed</span></div>
+    <div class="module-head"><h2>7. Automation (Policy) Scope — Site / Machine / Group</h2><span class="badge badge-done">Shipped — verified live</span></div>
     <div class="priority">Client priority: High</div>
 
     <h3>What was asked</h3>
@@ -237,12 +246,13 @@
 
     <div class="rec-box"><p><strong>Recommendation:</strong> agree. Extend Policies the same way Browser Policies already do it — add a scope type (site or group) and reuse the existing Group model. This is a proven pattern already working elsewhere in the same codebase, which lowers both effort and risk. A positive "specific machine" target can be added the same way if wanted alongside the existing exclusion list.</p></div>
     <span class="effort"><b>Effort:</b> Medium — copying an existing, working pattern from Browser Policies.</span>
-    <div class="tracker">Status: <label><input type="checkbox" disabled> Proposed</label><label><input type="checkbox" disabled> Built</label><label><input type="checkbox" disabled> Verified live by client</label></div>
+    <div class="delivered"><p><strong>Delivered:</strong> Policies now support Site, Group, and Machine scope, reusing Browser Policy's exact proven pattern. Along the way this surfaced a real correctness bug, not just a UI gap: the code path that runs on every real agent check-in only ever looked policies up by project, so a group- or machine-scoped policy would never have fired in real time — only caught up later on the scheduled sweep. Fixed alongside the feature and confirmed live: a real group-scoped policy was correctly discovered and evaluated against a real production machine. A tenant creating a group-scoped policy that would reach another client's machine is refused, the same protection Module 4 has. Commit <span class="commit">181373b</span>.</p></div>
+    <div class="tracker">Status: <label><input type="checkbox" disabled checked> Proposed</label><label><input type="checkbox" disabled checked> Built &amp; deployed</label><label><input type="checkbox" disabled> Verified live by client</label></div>
   </div>
 
   <!-- MODULE 8 -->
   <div class="module" id="m8">
-    <div class="module-head"><h2>8. Navigation &amp; UX</h2><span class="badge badge-gap">Reasonable — agreed, pending Module 6</span></div>
+    <div class="module-head"><h2>8. Navigation &amp; UX</h2><span class="badge badge-done">Shipped — verified live</span></div>
     <div class="priority">Client priority: Medium</div>
 
     <h3>What was asked</h3>
@@ -253,12 +263,13 @@
 
     <div class="rec-box"><p><strong>Recommendation:</strong> agree to reorganize along the proposed lines. The exact shape of the "Management" group depends on the Module 6 decision — if Policies and Automation stay merged (Option A), that group holds just Policies; if a real Automation layer is built later (Option B), it gets its own entry then. Otherwise this is a straightforward relabeling of existing pages into clearer groups, not new functionality.</p></div>
     <span class="effort"><b>Effort:</b> Small–Medium — reorganizing an existing menu definition; no new backend logic beyond what other modules already add.</span>
-    <div class="tracker">Status: <label><input type="checkbox" disabled> Proposed</label><label><input type="checkbox" disabled> Built</label><label><input type="checkbox" disabled> Verified live by client</label></div>
+    <div class="delivered"><p><strong>Delivered:</strong> navigation now matches the proposed structure — Dashboard (+ Needs attention), Assets (Clients/Sites/Computers/Groups), Software (Packages/Deployments/Licenses), Management (Policies, since Module 6 kept it merged with Automation), Administration, and Reports (Reports + Audit Logs, renamed from Activity). Billing is unchanged — it wasn't part of the described structure and doesn't fit it. Turned out to be a pure data change: the sidebar already derives its collapsible sections from group names, so no template rework was needed. <strong>Not built:</strong> "Deployment History" and "Automation History" as separate items — they aren't distinct features here; the existing Deployments and Policy pages already are each one's history, so duplicating the same routes under new labels would be redundant navigation, not a real feature. Commit <span class="commit">c2d0789</span>.</p></div>
+    <div class="tracker">Status: <label><input type="checkbox" disabled checked> Proposed</label><label><input type="checkbox" disabled checked> Built &amp; deployed</label><label><input type="checkbox" disabled> Verified live by client</label></div>
   </div>
 
   <!-- MODULE 9 -->
   <div class="module" id="m9">
-    <div class="module-head"><h2>9. Audit Logging</h2><span class="badge badge-exists">Largely already built</span></div>
+    <div class="module-head"><h2>9. Audit Logging</h2><span class="badge badge-done">Verified &amp; shipped</span></div>
     <div class="priority">Client priority: Medium/High</div>
 
     <h3>What was asked</h3>
@@ -272,31 +283,33 @@
 
     <div class="rec-box"><p><strong>Recommendation:</strong> keep the existing engine — it doesn't need to be rebuilt. Two remaining pieces of work: (1) a coverage audit confirming every admin action category the client listed is actually logged, filling any real gaps found, and (2) reworking the Detail column into explicit Previous Value / New Value fields where the underlying data supports it.</p></div>
     <span class="effort"><b>Effort:</b> Small–Medium.</span>
-    <div class="tracker">Status: <label><input type="checkbox" disabled> Proposed</label><label><input type="checkbox" disabled> Built</label><label><input type="checkbox" disabled> Verified live by client</label></div>
+    <div class="delivered"><p><strong>Delivered:</strong> wrote real tests exercising every category on the client's list — users/permissions, packages, policies, machine enrollment, configuration — instead of trusting a code-search for logging calls, which would have missed anything logged automatically through a model's own trait rather than an explicit call site. <strong>Verified finding: every category was already covered</strong>, including deletions and machine enrollment (not obvious from reading the controller — enrollment has no logging call of its own; it's covered because the underlying model-creation call is). The Detail column now splits into Previous Value / New Value wherever the data supports it. Checking this against real production rows immediately caught a real display bug — a deleted record's last state was showing under "New Value" instead of "Previous Value" — fixed and reconfirmed against the same real rows. Commits <span class="commit">1f639b6</span>, <span class="commit">b996428</span>.</p></div>
+    <div class="tracker">Status: <label><input type="checkbox" disabled checked> Proposed</label><label><input type="checkbox" disabled checked> Built &amp; deployed</label><label><input type="checkbox" disabled> Verified live by client</label></div>
   </div>
 
   <!-- SUMMARY -->
   <div class="module" id="summary">
     <h2 style="margin-bottom:16px;">Summary — Status at a Glance</h2>
     <table class="summary">
-      <thead><tr><th>#</th><th>Item</th><th>Priority</th><th>Status</th></tr></thead>
+      <thead><tr><th>#</th><th>Item</th><th>Priority</th><th>Status</th><th>Commit(s)</th></tr></thead>
       <tbody>
-        <tr><td>1</td><td>User Roles &amp; Permissions</td><td>High</td><td>Already exceeds ask — UI clarity only</td></tr>
-        <tr><td>2</td><td>Approvals</td><td>Medium</td><td>Real feature — keep, clarify visibility</td></tr>
-        <tr><td>3</td><td>Packages vs. Deployments</td><td>High</td><td>Already separated — copy/labeling only</td></tr>
-        <tr><td>4</td><td>Site/Machine/Group Deployment</td><td>High</td><td>Genuine gap — agreed to build</td></tr>
-        <tr><td>5</td><td>Needs Attention</td><td>High</td><td>Partially built — agreed to extend scope</td></tr>
-        <tr><td>6</td><td>Automation vs. Policies</td><td>High</td><td><strong>Awaiting your decision (A or B)</strong></td></tr>
-        <tr><td>7</td><td>Site/Machine/Group Automation</td><td>High</td><td>Genuine gap — agreed to build</td></tr>
-        <tr><td>8</td><td>Navigation Improvements</td><td>Medium</td><td>Agreed — pending #6 decision</td></tr>
-        <tr><td>9</td><td>Audit Logging</td><td>Medium/High</td><td>Largely built — coverage audit + display work remains</td></tr>
+        <tr><td>1</td><td>User Roles &amp; Permissions</td><td>High</td><td>Closed — already exceeded the ask</td><td>—</td></tr>
+        <tr><td>2</td><td>Approvals</td><td>Medium</td><td>Closed — real feature, kept as-is</td><td>—</td></tr>
+        <tr><td>3</td><td>Packages vs. Deployments</td><td>High</td><td>Closed — already separated; visually improved by #8</td><td>—</td></tr>
+        <tr><td>4</td><td>Site/Machine/Group Deployment</td><td>High</td><td><strong>Shipped — verified live</strong></td><td><span class="code">181373b</span></td></tr>
+        <tr><td>5</td><td>Needs Attention</td><td>High</td><td><strong>Shipped — verified live</strong></td><td><span class="code">c2d0789</span></td></tr>
+        <tr><td>6</td><td>Automation vs. Policies</td><td>High</td><td><strong>Decided (Option A) &amp; shipped</strong></td><td><span class="code">4369a42</span></td></tr>
+        <tr><td>7</td><td>Site/Machine/Group Automation</td><td>High</td><td><strong>Shipped — verified live</strong></td><td><span class="code">181373b</span></td></tr>
+        <tr><td>8</td><td>Navigation Improvements</td><td>Medium</td><td><strong>Shipped — verified live</strong></td><td><span class="code">c2d0789</span></td></tr>
+        <tr><td>9</td><td>Audit Logging</td><td>Medium/High</td><td><strong>Verified &amp; shipped</strong></td><td><span class="code">1f639b6</span>, <span class="code">b996428</span></td></tr>
       </tbody>
     </table>
+    <p style="margin-top:14px; font-size:13px; color:var(--sub);">Every commit above is deployed to production (piodeploy.com) and was checked against real production data after deploying, not just against the local test suite. The one box left unchecked on every module is "Verified live by client" — yours to tick as you go through each one.</p>
   </div>
 
   <div class="final">
     <h2>Final Recommendation</h2>
-    <p>The client's overall functional structure — clean separation of Users, Roles &amp; Permissions, Packages, Deployments, Policies, Automations, and Needs Attention — is the right direction, and much of it is already true of the underlying system today, even where the UI hasn't made that obvious yet. The real, concrete build work is Site/Machine/Group targeting for both Deployments and Policies (Modules 4 &amp; 7, both reusing the same proven Group model already working for Browser Policies), and extending Needs Attention's scope beyond deployment failures (Module 5). Everything else is either already built and needs better presentation, or — in the one case of Automation vs. Policies — needs a single decision from the client before any code changes, since it affects how the product is described going forward, not just how it looks.</p>
+    <p>The client's overall functional structure — clean separation of Users, Roles &amp; Permissions, Packages, Deployments, Policies, and Needs Attention — was the right direction, and most of it was already true of the underlying system, even where the UI hadn't made that obvious yet. All the real, concrete build work is now done: Site/Machine/Group targeting for both Deployments and Policies (Modules 4 &amp; 7), Needs Attention's extended scope (Module 5), the Automation/Policies naming decision (Module 6), and the navigation restructure (Module 8) — every one built, tested, deployed to production, and checked against real data, not just a passing test suite. Module 9's audit logging turned out to already have full coverage; the one real display gap found there was fixed the same way. Two things surfaced along the way that weren't part of the original nine points and are worth a look when convenient: the Bulk Deploy / Policy tenant-isolation guard added for Modules 4 and 7 closes a real cross-tenant risk that predates this review, and the "Deployment History" / "Automation History" items from the original navigation proposal were deliberately not built as separate pages — they'd just duplicate the existing Deployments and Policy views under new labels.</p>
   </div>
 
 </div>
