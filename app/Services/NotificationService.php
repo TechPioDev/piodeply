@@ -164,6 +164,8 @@ class NotificationService
             'policy.drift'          => ['📋', '2563EB', 'Accent'],
             'computer.registered'   => ['🟢', '22C55E', 'Good'],
             'lead.received'         => ['✉️', '0F766E', 'Good'],
+            'signup.received'       => ['✉️', '0F766E', 'Good'],
+            'package.requested'     => ['📦', '0F766E', 'Good'],
             default                 => ['🔔', '0F766E', 'Accent'],
         };
     }

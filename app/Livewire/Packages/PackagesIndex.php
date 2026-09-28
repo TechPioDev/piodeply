@@ -3,6 +3,7 @@
 namespace App\Livewire\Packages;
 
 use App\Models\Package;
+use App\Models\PackageRequest;
 use App\Repositories\Contracts\PackageRepositoryInterface;
 use App\Services\PackageService;
 use Livewire\Component;
@@ -92,6 +93,13 @@ class PackagesIndex extends Component
             'stats'      => $this->stats(),
             'categories' => \App\Models\PackageCategory::orderBy('sort_order')->get(['id', 'name']),
             'types'      => \App\Enums\InstallerType::cases(),
+            // Surfaced next to the create/request button so both audiences
+            // can find the requests queue: staff see everyone's pending
+            // count, a tenant sees their own.
+            'openPackageRequests' => PackageRequest::query()
+                ->where('status', PackageRequest::STATUS_PENDING)
+                ->visibleTo(auth()->user())
+                ->count(),
         ])->layout('layouts.app');
     }
 }

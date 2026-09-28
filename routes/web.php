@@ -168,6 +168,8 @@ Route::middleware([
 
     Route::middleware('permission:packages.view')->group(function () {
         Route::get('/packages', \App\Livewire\Packages\PackagesIndex::class)->name('packages.index');
+        // Before {package}, or "requests" would be swallowed by the binding.
+        Route::get('/packages/requests', \App\Livewire\Packages\PackageRequests::class)->name('packages.requests');
         Route::get('/packages/create', \App\Livewire\Packages\PackageForm::class)->name('packages.create');
         Route::get('/packages/{package}', \App\Livewire\Packages\PackageShow::class)->name('packages.show');
         Route::get('/packages/{package}/edit', \App\Livewire\Packages\PackageForm::class)->name('packages.edit');

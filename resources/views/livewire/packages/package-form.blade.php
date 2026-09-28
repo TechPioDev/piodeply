@@ -7,6 +7,15 @@
 
     <div class="py-12">
         <div class="max-w-2xl mx-auto sm:px-6 lg:px-8">
+            @if ($fulfillingRequest)
+                <div class="pd-card p-3 mb-4 text-sm text-teal-800 !bg-teal-50 border-teal-200">
+                    Building this for <strong>{{ $fulfillingRequest->client->company_name }}</strong>'s request
+                    @if ($fulfillingRequest->notes)
+                        — "{{ $fulfillingRequest->notes }}"
+                    @endif
+                    . Saving will mark the request fulfilled and notify {{ $fulfillingRequest->requester->name }}.
+                </div>
+            @endif
             <form wire:submit="save" class="pd-card p-6 space-y-5">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>

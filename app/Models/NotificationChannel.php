@@ -16,7 +16,14 @@ class NotificationChannel extends Model
     public const TYPE_EMAIL = 'email';
     public const TYPE_WEBHOOK = 'webhook';
 
-    /** Every event the platform can notify about. */
+    /**
+     * Every event the platform can notify about. A channel can only ever be
+     * subscribed to a key listed here (the settings form's checkboxes come
+     * straight from this array) — a notify() call for a key missing from
+     * this list silently reaches zero channels, forever. Found that way:
+     * 'signup.received' was already being fired but had no entry here, so
+     * new-signup alerts have never actually reached any configured channel.
+     */
     public const EVENTS = [
         'job.failed'            => 'Deployment failed (retries exhausted)',
         'computer.registered'   => 'New computer enrolled',
@@ -24,6 +31,8 @@ class NotificationChannel extends Model
         'policy.drift'          => 'Daily compliance drift digest',
         'browser_policy.failed' => 'Browser policy failed or non-compliant',
         'lead.received'         => 'Contact / access-request submitted on the website',
+        'signup.received'       => 'New signup submitted',
+        'package.requested'     => 'A client requested a new package',
     ];
 
     protected $fillable = [

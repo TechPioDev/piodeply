@@ -7,8 +7,11 @@ use App\Enums\InstallerType;
 use App\Enums\PackageMode;
 use App\Models\Package;
 use App\Models\PackageCategory;
+use App\Models\PackageRequest;
+use App\Services\PackageRequestService;
 use App\Services\PackageService;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 class PackageForm extends Component
@@ -26,6 +29,17 @@ class PackageForm extends Component
     public ?string $winget_id = null;
     public bool $winget_scopeless = false;
     public ?string $choco_id = null;
+
+    /**
+     * Set only when staff arrived here via "Build this package" on a
+     * pending PackageRequest — pre-fills the name/vendor/homepage a client
+     * already gave us, and links the request to whatever package this save
+     * produces (PackageRequestService::linkFulfilledPackage).
+     */
+    #[Url]
+    public ?int $fulfillsRequestId = null;
+
+    public ?PackageRequest $fulfillingRequest = null;
 
     /**
      * How the software is actually managed — separate from is_active, which
@@ -46,8 +60,25 @@ class PackageForm extends Component
             $this->installer_type = $package->installer_type->value;
             $this->architecture = $package->architecture->value;
             $this->management_mode = $package->management_mode->value;
-        } else {
-            $this->authorize('create', Package::class);
+
+            return;
+        }
+
+        $this->authorize('create', Package::class);
+
+        if ($this->fulfillsRequestId !== null) {
+            $request = PackageRequest::find($this->fulfillsRequestId);
+            // A stale/decided link (already fulfilled, or rejected since the
+            // list rendered) is dropped quietly rather than blocking the
+            // page — staff can still build a package with nothing linked.
+            if ($request !== null && $request->isOpen() && auth()->user()->can('review', $request)) {
+                $this->fulfillingRequest = $request;
+                $this->name = $request->name;
+                $this->vendor = $request->vendor;
+                $this->homepage = $request->homepage;
+            } else {
+                $this->fulfillsRequestId = null;
+            }
         }
     }
 
@@ -96,14 +127,22 @@ class PackageForm extends Component
             return $this->redirectRoute('packages.show', $this->package);
         }
 
-        // A tenant's package is born private to their client — always, not
-        // optionally: a tenant cannot publish into the shared catalogue.
-        if (auth()->user()->tenantClientId() !== null) {
-            $validated['client_id'] = auth()->user()->tenantClientId();
-        }
-
+        // Package creation is staff-only (see PackagePolicy::create) — a
+        // tenant can no longer reach this branch at all, so unlike before
+        // there is no tenant-private client_id to force here. A package
+        // built to fulfil a request still defaults to the shared catalogue,
+        // same as any other staff-created package: most requested software
+        // (Zoom, a PDF reader...) is just as useful to every other client,
+        // and nothing here stops staff editing client_id later for the rare
+        // genuinely client-specific case.
         $package = $service->create($validated);
-        session()->flash('status', 'Package created. Add a version below if it ships as a binary installer.');
+
+        if ($this->fulfillingRequest !== null) {
+            app(PackageRequestService::class)->linkFulfilledPackage($this->fulfillingRequest, $package, auth()->user());
+            session()->flash('status', "Package created and \"{$this->fulfillingRequest->name}\" marked fulfilled — the requester has been notified.");
+        } else {
+            session()->flash('status', 'Package created. Add a version below if it ships as a binary installer.');
+        }
 
         return $this->redirectRoute('packages.show', $package);
     }

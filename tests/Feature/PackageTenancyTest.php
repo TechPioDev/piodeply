@@ -115,21 +115,21 @@ class PackageTenancyTest extends TestCase
             ->assertDontSee('Beta In-House Tool');
     }
 
-    public function test_a_tenants_new_package_is_born_private_to_them(): void
+    /**
+     * A tenant used to be able to publish a package privately to their own
+     * client (packages.manage covered create too). That ability is
+     * withdrawn — the MSP only ships tested software, so a new package now
+     * always comes from staff building it, optionally to fulfil a request a
+     * tenant filed (see PackageRequestTest for that full flow). Not even a
+     * private-to-themselves package is still reachable directly.
+     */
+    public function test_a_tenant_can_no_longer_create_any_package_directly(): void
     {
         $owner = $this->ownerOf($this->clientB);
 
-        Livewire::actingAs($owner)
-            ->test(PackageForm::class)
-            ->set('package_category_id', \App\Models\PackageCategory::factory()->create()->id)
-            ->set('name', 'Beta Custom Installer')
-            ->set('installer_type', 'exe')
-            ->set('architecture', 'x64')
-            ->call('save');
+        Livewire::actingAs($owner)->test(PackageForm::class)->assertForbidden();
 
-        $package = Package::where('name', 'Beta Custom Installer')->first();
-        $this->assertNotNull($package);
-        $this->assertSame($this->clientB->id, $package->client_id, 'tenants cannot publish into the shared catalogue');
+        $this->assertFalse($owner->can('create', Package::class));
     }
 
     public function test_a_tenant_cannot_edit_the_catalogue_or_another_tenants_package(): void

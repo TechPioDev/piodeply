@@ -5,13 +5,30 @@
                 <h2 class="font-semibold text-xl text-slate-900 leading-tight">{{ __('Packages') }}</h2>
                 <p class="text-sm text-slate-500 mt-0.5">Approved software repository — {{ $packages->total() }} packages</p>
             </div>
-            @can('create', \App\Models\Package::class)
-                <a href="{{ route('packages.create') }}"
-                   class="inline-flex items-center gap-2 px-4 py-2 bg-teal-700 rounded-lg font-semibold text-sm text-white shadow-sm hover:bg-teal-800 transition">
-                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                    New Package
+            <div class="flex items-center gap-3">
+                <a href="{{ route('packages.requests') }}"
+                   class="relative inline-flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg font-semibold text-sm text-slate-600 shadow-sm hover:border-teal-300 hover:text-teal-700 transition">
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
+                    Package requests
+                    @if ($openPackageRequests > 0)
+                        <span class="pd-badge pd-badge-amber">{{ $openPackageRequests }}</span>
+                    @endif
                 </a>
-            @endcan
+                @can('create', \App\Models\Package::class)
+                    <a href="{{ route('packages.create') }}"
+                       class="inline-flex items-center gap-2 px-4 py-2 bg-teal-700 rounded-lg font-semibold text-sm text-white shadow-sm hover:bg-teal-800 transition">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                        New Package
+                    </a>
+                @endcan
+                @can('create', \App\Models\PackageRequest::class)
+                    <a href="{{ route('packages.requests') }}"
+                       class="inline-flex items-center gap-2 px-4 py-2 bg-teal-700 rounded-lg font-semibold text-sm text-white shadow-sm hover:bg-teal-800 transition">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                        Request a package
+                    </a>
+                @endcan
+            </div>
         </div>
     </x-slot>
 
