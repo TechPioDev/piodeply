@@ -198,6 +198,25 @@ class AuditLogCoverageTest extends TestCase
         $this->assertNotNull($values['new']);
     }
 
+    /**
+     * Caught on live production data while verifying this exact feature: a
+     * 'deleted' row's payload is only ever 'old' (there is no 'attributes' —
+     * nothing new exists), so it was landing as raw JSON under New Value.
+     * What it looked like right before it stopped existing belongs under
+     * Previous, with nothing under New.
+     */
+    public function test_a_deleted_row_shows_its_last_state_as_the_previous_value(): void
+    {
+        $package = Package::factory()->create(['name' => 'Going Away']);
+        $package->delete();
+        $activity = Activity::where('subject_type', Package::class)->where('description', 'deleted')->latest('id')->first();
+
+        $values = app(ActivityIndex::class)->valuesFor($activity);
+
+        $this->assertStringContainsString('Going Away', $values['previous']);
+        $this->assertNull($values['new']);
+    }
+
     public function test_a_payload_with_no_value_change_shape_falls_back_to_showing_it_whole(): void
     {
         $admin = $this->admin();

@@ -59,9 +59,15 @@ class ActivityIndex extends Component
             ];
         }
 
-        if ($props->has('attributes') && $props->count() === 1) {
+        if ($props->has('attributes') && ! $props->has('old')) {
             // A 'created' event: nothing existed before this.
             return ['previous' => null, 'new' => $this->formatFields($props->get('attributes'))];
+        }
+
+        if ($props->has('old') && ! $props->has('attributes')) {
+            // A 'deleted' event: this is what it looked like right before
+            // it stopped existing — that belongs under Previous, not New.
+            return ['previous' => $this->formatFields($props->get('old')), 'new' => null];
         }
 
         if ($props->isEmpty()) {
