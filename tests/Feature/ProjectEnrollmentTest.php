@@ -346,6 +346,71 @@ class ProjectEnrollmentTest extends TestCase
     }
 
     /**
+     * A "2.5 hour install" turned out to be this exact path: a genuinely
+     * fresh physical machine (unlike the already-provisioned test machine
+     * the previous network fix was timed on) hits the winget-repair branch,
+     * and Repair-WinGetPackageManager has no timeout of its own — it has
+     * been seen, in the field, to hang for a very long time waiting on
+     * Microsoft Store services. Every network call in the installer must
+     * either carry an explicit -TimeoutSec or run under Invoke-WithTimeout,
+     * so the worst case is bounded.
+     */
+    public function test_every_network_call_in_the_installer_is_time_bounded(): void
+    {
+        $script = view('agent.install-script', [
+            'project'   => $this->project,
+            'serverUrl' => 'https://piodeploy.com',
+            'binaryUrl' => 'https://piodeploy.com/download/agent/x/binary',
+            'hasBundle' => true,
+        ])->render();
+
+        $this->assertStringContainsString('function Invoke-WithTimeout', $script);
+
+        // Every actual Invoke-WebRequest call (not a comment mentioning the
+        // cmdlet by name) must carry -TimeoutSec.
+        preg_match_all('/Invoke-WebRequest\s+-Uri[^\r\n]*/', $script, $matches);
+        // Four call sites in the source: bundle, VC++, the winget-deps loop
+        // (one line, iterates over three URLs), and the .NET runtime.
+        $this->assertCount(4, $matches[0]);
+        foreach ($matches[0] as $line) {
+            $this->assertStringContainsString('-TimeoutSec', $line, "every download must be time-bounded: {$line}");
+        }
+
+        // Repair-WinGetPackageManager has no -TimeoutSec of its own, so it
+        // must run inside the Invoke-WithTimeout wrapper, not called bare.
+        $wrapperPos = strpos($script, 'Invoke-WithTimeout');
+        $repairPos = strpos($script, 'Repair-WinGetPackageManager -AllUsers');
+        $this->assertNotFalse($wrapperPos);
+        $this->assertNotFalse($repairPos);
+        $this->assertGreaterThan($wrapperPos, $repairPos, 'Repair-WinGetPackageManager must be reached through the Invoke-WithTimeout wrapper');
+    }
+
+    /**
+     * The direct-download provisioning path (plain HTTP downloads, each
+     * capped) depends only on file downloads succeeding — not on Microsoft
+     * Store services being reachable, which is what let the module-based
+     * repair hang for hours in the field. It must run BEFORE that repair is
+     * even attempted, so the common repair case never touches the risky path
+     * at all.
+     */
+    public function test_direct_appx_provisioning_is_tried_before_the_module_based_repair(): void
+    {
+        $script = view('agent.install-script', [
+            'project'   => $this->project,
+            'serverUrl' => 'https://piodeploy.com',
+            'binaryUrl' => 'https://piodeploy.com/download/agent/x/binary',
+            'hasBundle' => true,
+        ])->render();
+
+        $directProvisionPos = strpos($script, 'Add-AppxProvisionedPackage -Online');
+        $moduleRepairPos = strpos($script, 'Repair-WinGetPackageManager -AllUsers');
+
+        $this->assertNotFalse($directProvisionPos);
+        $this->assertNotFalse($moduleRepairPos);
+        $this->assertLessThan($moduleRepairPos, $directProvisionPos, 'direct AppX provisioning must be tried before the Store-dependent module repair');
+    }
+
+    /**
      * The agent is a framework-dependent .NET 8 Worker Service (no
      * SelfContained/RuntimeIdentifier in the csproj), so a machine without
      * the .NET 8 Runtime already on it cannot start the service at all --

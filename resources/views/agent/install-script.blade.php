@@ -30,7 +30,7 @@ exit 1
 # 1. Download the agent bundle
 $tempZip = Join-Path $env:TEMP 'PioDeployAgent.zip'
 Write-Host 'Downloading agent bundle...'
-Invoke-WebRequest -Uri $bundleUrl -OutFile $tempZip -UseBasicParsing
+Invoke-WebRequest -Uri $bundleUrl -OutFile $tempZip -UseBasicParsing -TimeoutSec 120
 
 # 2. Stop + remove any previous install
 $existing = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
@@ -58,6 +58,33 @@ $config | ConvertTo-Json -Depth 5 | Set-Content $configPath -Encoding UTF8
 #    verify, and never let a repair hiccup abort the agent install - the
 #    portal's readiness banner reports anything that could not be fixed.
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+# A stalled network call never times itself out in PowerShell by default -
+# Invoke-WebRequest has no idle ceiling, and Microsoft's own winget-repair
+# cmdlet below (Repair-WinGetPackageManager) is known, in the field, to sit
+# for a very long time - an hour or more - waiting on Microsoft Store
+# services when a machine has no working winget yet. A machine that already
+# had winget working (every machine used to time this installer before) never
+# exercises that path at all, which is why it never showed up as slow until a
+# genuinely fresh physical machine hit it. Every potentially slow step from
+# here down is either given an explicit -TimeoutSec, or - for the one call
+# with no timeout parameter of its own - run in a background job with a hard
+# wall-clock cap, so the worst case is minutes, never hours.
+function Invoke-WithTimeout {
+    param([Parameter(Mandatory)] [scriptblock] $Script, [int] $TimeoutSec = 120, [string] $What = 'step')
+    $job = Start-Job -ScriptBlock $Script
+    try {
+        if (Wait-Job $job -Timeout $TimeoutSec) {
+            Receive-Job $job -ErrorAction SilentlyContinue | Out-Null
+            return ($job.State -eq 'Completed')
+        }
+        Write-Warning "$What did not finish within ${TimeoutSec}s; moving on."
+        return $false
+    } finally {
+        Stop-Job $job -ErrorAction SilentlyContinue
+        Remove-Job $job -Force -ErrorAction SilentlyContinue
+    }
+}
 
 function Test-WingetWorks {
     # Resolve the real exe (the bare "winget" alias is not on SYSTEM's PATH),
@@ -90,7 +117,7 @@ if (Test-WingetWorks) {
     try {
         Write-Host 'Ensuring Visual C++ runtime...'
         $vc = Join-Path $env:TEMP 'vc_redist.x64.exe'
-        Invoke-WebRequest -Uri 'https://aka.ms/vs/17/release/vc_redist.x64.exe' -OutFile $vc -UseBasicParsing
+        Invoke-WebRequest -Uri 'https://aka.ms/vs/17/release/vc_redist.x64.exe' -OutFile $vc -UseBasicParsing -TimeoutSec 90
         $vcProc = Start-Process -FilePath $vc -ArgumentList '/install', '/quiet', '/norestart' -Wait -PassThru
         Remove-Item $vc -Force -ErrorAction SilentlyContinue
         if ($vcProc.ExitCode -in 0, 1638, 3010) { Write-Host 'Visual C++ runtime present.' }
@@ -99,39 +126,45 @@ if (Test-WingetWorks) {
         Write-Warning "Could not ensure the Visual C++ runtime: $($_.Exception.Message)"
     }
 
-    # Primary: Microsoft's supported repair, which pulls winget plus its
-    # VCLibs / UI.Xaml dependencies and provisions them for every user (the
-    # -AllUsers is what exposes it to SYSTEM).
+    # Primary: provision winget and its VCLibs / UI.Xaml dependencies straight
+    # from Microsoft as a handful of plain, bounded HTTP downloads. Tried
+    # FIRST (it used to be the fallback) because it depends on nothing but
+    # file downloads, each capped below - not on Microsoft Store services
+    # being reachable and responsive, which is what made the other approach
+    # capable of hanging for hours on a machine that actually needs repairing.
     try {
-        Install-PackageProvider -Name NuGet -Force -ErrorAction Stop | Out-Null
-        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -ErrorAction SilentlyContinue
-        Install-Module -Name Microsoft.WinGet.Client -Force -Scope AllUsers -ErrorAction Stop
-        Import-Module Microsoft.WinGet.Client -ErrorAction Stop
-        Repair-WinGetPackageManager -AllUsers -Latest -ErrorAction Stop
+        $wtmp = Join-Path $env:TEMP 'pd-winget'
+        New-Item -ItemType Directory -Force $wtmp | Out-Null
+        # Parallel lists (no @() literal, which Blade could misread).
+        $depUrls  = 'https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx',
+                    'https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx',
+                    'https://aka.ms/getwinget'
+        $depFiles = 'vclibs.appx', 'uixaml.appx', 'winget.msixbundle'
+        for ($k = 0; $k -lt $depUrls.Count; $k++) {
+            $p = Join-Path $wtmp $depFiles[$k]
+            Invoke-WebRequest -Uri $depUrls[$k] -OutFile $p -UseBasicParsing -TimeoutSec 90
+            try { Add-AppxProvisionedPackage -Online -PackagePath $p -SkipLicense -ErrorAction Stop | Out-Null }
+            catch { Write-Warning "Could not provision $($depFiles[$k]): $($_.Exception.Message)" }
+        }
+        Remove-Item $wtmp -Recurse -Force -ErrorAction SilentlyContinue
     } catch {
-        Write-Warning "winget module repair did not complete: $($_.Exception.Message)"
+        Write-Warning "Direct winget provisioning failed: $($_.Exception.Message)"
     }
 
-    # Fallback: provision winget and its dependencies straight from Microsoft.
+    # Fallback: Microsoft's own module-based repair, tried only if the direct
+    # downloads above did not already fix it, and hard-capped at two minutes -
+    # Repair-WinGetPackageManager has no timeout of its own and has been seen,
+    # in the field, to hang far longer than that waiting on Store services on
+    # exactly the kind of machine that reaches this line.
     if (-not (Test-WingetWorks)) {
-        try {
-            $wtmp = Join-Path $env:TEMP 'pd-winget'
-            New-Item -ItemType Directory -Force $wtmp | Out-Null
-            # Parallel lists (no @() literal, which Blade could misread).
-            $depUrls  = 'https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx',
-                        'https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx',
-                        'https://aka.ms/getwinget'
-            $depFiles = 'vclibs.appx', 'uixaml.appx', 'winget.msixbundle'
-            for ($k = 0; $k -lt $depUrls.Count; $k++) {
-                $p = Join-Path $wtmp $depFiles[$k]
-                Invoke-WebRequest -Uri $depUrls[$k] -OutFile $p -UseBasicParsing
-                try { Add-AppxProvisionedPackage -Online -PackagePath $p -SkipLicense -ErrorAction Stop | Out-Null }
-                catch { Write-Warning "Could not provision $($depFiles[$k]): $($_.Exception.Message)" }
-            }
-            Remove-Item $wtmp -Recurse -Force -ErrorAction SilentlyContinue
-        } catch {
-            Write-Warning "winget fallback provisioning failed: $($_.Exception.Message)"
-        }
+        Write-Host 'Direct provisioning did not finish the job; trying the module-based repair (capped at 2 minutes)...'
+        Invoke-WithTimeout -TimeoutSec 120 -What 'winget module repair' -Script {
+            Install-PackageProvider -Name NuGet -Force -ErrorAction Stop | Out-Null
+            Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -ErrorAction SilentlyContinue
+            Install-Module -Name Microsoft.WinGet.Client -Force -Scope AllUsers -ErrorAction Stop
+            Import-Module Microsoft.WinGet.Client -ErrorAction Stop
+            Repair-WinGetPackageManager -AllUsers -Latest -ErrorAction Stop
+        } | Out-Null
     }
 
     if (Test-WingetWorks) { Write-Host 'winget repaired.' }
@@ -158,7 +191,7 @@ if (Test-DotNetRuntimeWorks) {
     Write-Host '.NET 8 Runtime missing; installing...'
     try {
         $dotnetInstaller = Join-Path $env:TEMP 'dotnet-runtime-8-x64.exe'
-        Invoke-WebRequest -Uri 'https://aka.ms/dotnet/8.0/dotnet-runtime-win-x64.exe' -OutFile $dotnetInstaller -UseBasicParsing
+        Invoke-WebRequest -Uri 'https://aka.ms/dotnet/8.0/dotnet-runtime-win-x64.exe' -OutFile $dotnetInstaller -UseBasicParsing -TimeoutSec 120
         $dotnetProc = Start-Process -FilePath $dotnetInstaller -ArgumentList '/install', '/quiet', '/norestart' -Wait -PassThru
         Remove-Item $dotnetInstaller -Force -ErrorAction SilentlyContinue
         if ($dotnetProc.ExitCode -in 0, 3010) { Write-Host '.NET 8 Runtime installed.' }
