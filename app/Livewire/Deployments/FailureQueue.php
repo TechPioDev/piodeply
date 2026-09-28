@@ -37,7 +37,7 @@ class FailureQueue extends Component
     public function render(FailureQueueService $queue)
     {
         return view('livewire.deployments.failure-queue', [
-            'causes' => $queue->unresolvedCauses(auth()->user()),
+            'items' => $queue->attentionItems(auth()->user()),
         ])->layout('layouts.app');
     }
 }

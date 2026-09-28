@@ -17,9 +17,11 @@ use App\Models\User;
  */
 class NavigationService
 {
-    public const FLEET = 'Fleet';
+    public const DASHBOARD = 'Dashboard';
+    public const ASSETS = 'Assets';
     public const SOFTWARE = 'Software';
-    public const INSIGHTS = 'Insights';
+    public const MANAGEMENT = 'Management';
+    public const REPORTS = 'Reports';
     public const BILLING = 'Billing';
     public const ADMIN = 'Administration';
 
@@ -37,54 +39,50 @@ class NavigationService
 
         // Order here is the order on screen, within a group and between them.
         $definition = [
-            ['label' => 'Dashboard', 'route' => 'dashboard', 'active' => 'dashboard', 'permission' => null, 'group' => null,
+            ['label' => 'Dashboard', 'route' => 'dashboard', 'active' => 'dashboard', 'permission' => null, 'group' => self::DASHBOARD,
                 'icon' => '<path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>'],
-
-            // Who we manage: a client owns projects, a project holds machines.
-            ['label' => 'Clients', 'route' => 'clients.index', 'active' => 'clients.*', 'permission' => Permission::ClientsView, 'group' => self::FLEET,
-                'icon' => '<path d="M3 21h18M5 21V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v14M9 9h1M9 13h1M14 9h1M14 13h1M10 21v-4h4v4"/>'],
-            ['label' => project_terms(), 'route' => 'projects.index', 'active' => 'projects.*', 'permission' => Permission::ProjectsView, 'group' => self::FLEET,
-                'icon' => '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'],
-            ['label' => 'Computers', 'route' => 'computers.index', 'active' => 'computers.*', 'permission' => Permission::ComputersView, 'group' => self::FLEET,
-                'icon' => '<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>'],
-            // A client owner's own staff — invisible to platform staff, who
-            // use Administration -> Users instead.
-            ['label' => 'Users', 'route' => 'team.index', 'active' => 'team.*', 'permission' => Permission::UsersView, 'group' => self::FLEET, 'tenantOnly' => true, 'ownerOnly' => true,
-                'icon' => '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/>'],
-            // Deployment requests from approval-gated roles await the owner.
-            ['label' => 'Approvals', 'route' => 'approvals.index', 'active' => 'approvals.*', 'permission' => Permission::UsersView, 'group' => self::FLEET, 'tenantOnly' => true, 'ownerOnly' => true,
-                'badge' => $pendingApprovals > 0 ? $pendingApprovals : null,
-                'icon' => '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>'],
-            ['label' => 'Device Groups', 'route' => 'computers.groups', 'active' => 'computers.groups', 'permission' => Permission::ComputersView, 'group' => self::FLEET, 'staffOnly' => true,
-                'icon' => '<path d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H4v-2a4 4 0 0 1 3-3.87"/><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/>'],
-
-            // What we push: the catalogue, the jobs, and the rules behind them.
-            ['label' => 'Packages', 'route' => 'packages.index', 'active' => 'packages.*', 'permission' => Permission::PackagesView, 'group' => self::SOFTWARE,
-                'icon' => '<path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.7z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/>'],
-            ['label' => 'Deployments', 'route' => 'deployments.index', 'active' => 'deployments.*', 'permission' => Permission::DeploymentsView, 'group' => self::SOFTWARE,
-                'icon' => '<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>'],
             // Failures the engine has given up retrying, grouped by cause —
             // one entry per package/machine problem, not one per machine.
             // Named outside the deployments.* family so the two nav items
             // never both light up for the same page.
-            ['label' => 'Needs attention', 'route' => 'failure-queue.index', 'active' => 'failure-queue.*', 'permission' => Permission::DeploymentsView, 'group' => self::SOFTWARE,
+            ['label' => 'Needs attention', 'route' => 'failure-queue.index', 'active' => 'failure-queue.*', 'permission' => Permission::DeploymentsView, 'group' => self::DASHBOARD,
                 'icon' => '<path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/>'],
+
+            // Who and what we manage: a client owns projects, a project holds machines.
+            ['label' => 'Clients', 'route' => 'clients.index', 'active' => 'clients.*', 'permission' => Permission::ClientsView, 'group' => self::ASSETS,
+                'icon' => '<path d="M3 21h18M5 21V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v14M9 9h1M9 13h1M14 9h1M14 13h1M10 21v-4h4v4"/>'],
+            ['label' => project_terms(), 'route' => 'projects.index', 'active' => 'projects.*', 'permission' => Permission::ProjectsView, 'group' => self::ASSETS,
+                'icon' => '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'],
+            ['label' => 'Computers', 'route' => 'computers.index', 'active' => 'computers.*', 'permission' => Permission::ComputersView, 'group' => self::ASSETS,
+                'icon' => '<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>'],
+            ['label' => 'Device Groups', 'route' => 'computers.groups', 'active' => 'computers.groups', 'permission' => Permission::ComputersView, 'group' => self::ASSETS, 'staffOnly' => true,
+                'icon' => '<path d="M17 20h5v-2a4 4 0 0 0-3-3.87M9 20H4v-2a4 4 0 0 1 3-3.87"/><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/>'],
+
+            // What we push: the catalogue and the jobs.
+            ['label' => 'Packages', 'route' => 'packages.index', 'active' => 'packages.*', 'permission' => Permission::PackagesView, 'group' => self::SOFTWARE,
+                'icon' => '<path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.7z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/>'],
+            ['label' => 'Deployments', 'route' => 'deployments.index', 'active' => 'deployments.*', 'permission' => Permission::DeploymentsView, 'group' => self::SOFTWARE,
+                'icon' => '<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>'],
             ['label' => 'Licenses', 'route' => 'licenses.index', 'active' => 'licenses.*', 'permission' => Permission::LicensesView, 'group' => self::SOFTWARE,
                 'icon' => '<path d="M15 7a4 4 0 1 0-8 0c0 1.5.8 2.8 2 3.5V21l2-2 2 2v-10.5c1.2-.7 2-2 2-3.5z"/>'],
-            ['label' => policy_terms(), 'route' => 'policies.index', 'active' => 'policies.*', 'permission' => Permission::PoliciesView, 'group' => self::SOFTWARE,
+
+            // The rules behind what we push: desired-state and browser policy.
+            ['label' => policy_terms(), 'route' => 'policies.index', 'active' => 'policies.*', 'permission' => Permission::PoliciesView, 'group' => self::MANAGEMENT,
                 'icon' => '<path d="M12 22s8-3.6 8-9V5l-8-3-8 3v8c0 5.4 8 9 8 9z"/><path d="m9 12 2 2 4-4"/>'],
-            ['label' => browser_policy_terms(), 'route' => 'browser-policies.index', 'active' => 'browser-policies.*', 'permission' => Permission::PoliciesView, 'group' => self::SOFTWARE,
+            ['label' => browser_policy_terms(), 'route' => 'browser-policies.index', 'active' => 'browser-policies.*', 'permission' => Permission::PoliciesView, 'group' => self::MANAGEMENT,
                 'icon' => '<circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>'],
 
-            // How it is going.
-            ['label' => 'Reports', 'route' => 'reports.index', 'active' => 'reports.*', 'permission' => Permission::ReportsView, 'group' => self::INSIGHTS,
-                'icon' => '<path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-6"/>'],
-            ['label' => 'Activity', 'route' => 'activity.index', 'active' => 'activity.*', 'permission' => Permission::ActivityView, 'group' => self::INSIGHTS,
-                'icon' => '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'],
-
-            // Configuring PioDeploy itself.
+            // Configuring PioDeploy itself — who can access it, and how.
             ['label' => 'Users', 'route' => 'admin.users', 'active' => 'admin.users*', 'permission' => Permission::UsersView, 'group' => self::ADMIN, 'staffOnly' => true,
                 'icon' => '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>'],
+            // A client owner's own staff — invisible to platform staff, who
+            // use their own Users item above instead.
+            ['label' => 'Users', 'route' => 'team.index', 'active' => 'team.*', 'permission' => Permission::UsersView, 'group' => self::ADMIN, 'tenantOnly' => true, 'ownerOnly' => true,
+                'icon' => '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/>'],
+            // Deployment requests from approval-gated roles await the owner.
+            ['label' => 'Approvals', 'route' => 'approvals.index', 'active' => 'approvals.*', 'permission' => Permission::UsersView, 'group' => self::ADMIN, 'tenantOnly' => true, 'ownerOnly' => true,
+                'badge' => $pendingApprovals > 0 ? $pendingApprovals : null,
+                'icon' => '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>'],
             ['label' => 'Roles', 'route' => 'admin.roles', 'active' => 'admin.roles*', 'permission' => Permission::RolesManage, 'group' => self::ADMIN,
                 'icon' => '<circle cx="12" cy="8" r="3.5"/><path d="M6 21v-1.5a6 6 0 0 1 9-5.2"/><path d="m16.5 20 1.6 1 2.9-4"/>'],
             ['label' => 'Signups', 'route' => 'admin.signups', 'active' => 'admin.signups*', 'permission' => Permission::UsersCreate, 'group' => self::ADMIN,
@@ -97,6 +95,14 @@ class NavigationService
                 'icon' => '<path d="m22 7-10 6L2 7"/><rect x="2" y="5" width="20" height="14" rx="2"/>'],
             ['label' => 'Website', 'route' => 'admin.content', 'active' => 'admin.content*', 'permission' => Permission::SettingsManage, 'group' => self::ADMIN,
                 'icon' => '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 4v5"/>'],
+
+            // How it is going.
+            ['label' => 'Reports', 'route' => 'reports.index', 'active' => 'reports.*', 'permission' => Permission::ReportsView, 'group' => self::REPORTS,
+                'icon' => '<path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-6"/>'],
+            // Same page as before (route: activity.index) — "Audit Logs" is
+            // what it actually is; "Activity" undersold it.
+            ['label' => 'Audit Logs', 'route' => 'activity.index', 'active' => 'activity.*', 'permission' => Permission::ActivityView, 'group' => self::REPORTS,
+                'icon' => '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>'],
             // Subscriptions, revenue, growth (Billing system).
             ['label' => 'Overview', 'route' => 'admin.billing-overview', 'active' => 'admin.billing-overview*', 'permission' => Permission::SettingsManage, 'group' => self::BILLING,
                 'icon' => '<path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-6"/>'],

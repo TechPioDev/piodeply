@@ -2,16 +2,21 @@
 
 namespace Tests\Feature;
 
+use App\Enums\JobAction;
 use App\Enums\JobStatus;
 use App\Enums\Role as RoleEnum;
 use App\Livewire\Deployments\FailureQueue;
 use App\Models\Client;
+use App\Models\ClientRole;
 use App\Models\Computer;
 use App\Models\DeploymentFailureDismissal;
 use App\Models\DeploymentJob;
+use App\Models\DeploymentRequest;
 use App\Models\Package;
 use App\Models\Project;
+use App\Models\SoftwarePolicy;
 use App\Models\User;
+use App\Services\DeploymentService;
 use App\Services\FailureQueueService;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -274,5 +279,128 @@ class FailureQueueTest extends TestCase
     public function test_an_empty_queue_reports_zero_not_an_error(): void
     {
         $this->assertCount(0, $this->service()->unresolvedCauses($this->admin()));
+    }
+
+    /**
+     * Module 5: attentionItems() is the wider triage board the client's own
+     * review asked for -- offline machines, failing policies, and approvals
+     * waiting on an owner, alongside deployment failures, one normalised row
+     * per problem. Reuses the exact offline_notified_at flag the real
+     * "agent offline" alert already raises (CheckOfflineAgents /
+     * ComputerService), so the portal and the outbound alert never disagree
+     * about what counts as offline.
+     */
+    public function test_attention_items_include_an_offline_machine(): void
+    {
+        $client = Client::factory()->create();
+        $computer = $this->computerFor($client);
+        $computer->forceFill(['last_seen_at' => now()->subHours(2), 'offline_notified_at' => now()->subHour()])->save();
+
+        $items = $this->service()->attentionItems($this->admin());
+
+        $this->assertTrue($items->contains(fn (array $i) => $i['type'] === 'offline' && $i['computer']->is($computer)));
+    }
+
+    public function test_a_machine_that_has_not_been_flagged_offline_yet_does_not_appear(): void
+    {
+        $client = Client::factory()->create();
+        $this->computerFor($client); // fresh factory computer, no offline_notified_at
+
+        $items = $this->service()->attentionItems($this->admin());
+
+        $this->assertFalse($items->contains(fn (array $i) => $i['type'] === 'offline'));
+    }
+
+    /** A machine checking back in clears offline_notified_at, so it drops out on its own -- no dismiss needed. */
+    public function test_an_offline_machine_disappears_once_it_checks_back_in(): void
+    {
+        $client = Client::factory()->create();
+        $computer = $this->computerFor($client);
+        $computer->forceFill(['offline_notified_at' => now()->subHour()])->save();
+        $this->assertTrue($this->service()->attentionItems($this->admin())->contains(fn (array $i) => $i['type'] === 'offline'));
+
+        $computer->forceFill(['last_seen_at' => now(), 'offline_notified_at' => null])->save();
+
+        $this->assertFalse($this->service()->attentionItems($this->admin())->contains(fn (array $i) => $i['type'] === 'offline'));
+    }
+
+    public function test_attention_items_include_a_policy_with_failing_machines(): void
+    {
+        $client = Client::factory()->create();
+        $project = Project::factory()->create(['client_id' => $client->id]);
+        $computer = Computer::factory()->create(['project_id' => $project->id]);
+        $package = Package::factory()->create(['winget_id' => 'Test.App']);
+
+        $policy = SoftwarePolicy::factory()->create([
+            'project_id' => $project->id, 'package_id' => $package->id, 'mode' => 'enforce',
+        ]);
+
+        // A failed, non-retriable attempt on this machine for this package.
+        DeploymentJob::factory()->failed()->create([
+            'computer_id' => $computer->id, 'package_id' => $package->id,
+            'exit_code' => -1978335212, 'finished_at' => now()->subMinutes(5),
+        ]);
+
+        $items = $this->service()->attentionItems($this->admin());
+
+        $this->assertTrue($items->contains(fn (array $i) => $i['type'] === 'policy_failed' && $i['issue'] === $policy->fresh()->label().' is failing'));
+    }
+
+    public function test_attention_items_include_a_pending_approval_for_the_owner_only(): void
+    {
+        $client = Client::factory()->create();
+        $role = ClientRole::factory()->create(['client_id' => $client->id, 'can_install' => true, 'requires_approval' => true]);
+        $requester = tap(User::factory()->create(['client_id' => $client->id, 'client_role_id' => $role->id]),
+            fn (User $u) => $u->assignRole(RoleEnum::Technician->value));
+        $computer = $this->computerFor($client);
+        $package = Package::factory()->create();
+
+        $this->actingAs($requester);
+        app(DeploymentService::class)->queueIfNeeded($computer, $package, JobAction::Install);
+
+        $owner = $this->owner($client);
+        $this->assertTrue($this->service()->attentionItems($owner)->contains(fn (array $i) => $i['type'] === 'pending_approval'));
+
+        // Staff cannot act on someone else's approval queue, so it is not
+        // shown to them as an actionable item here.
+        $this->assertFalse($this->service()->attentionItems($this->admin())->contains(fn (array $i) => $i['type'] === 'pending_approval'));
+    }
+
+    public function test_a_tenant_never_sees_another_clients_offline_machine_or_failing_policy(): void
+    {
+        $mine = Client::factory()->create();
+        $theirs = Client::factory()->create();
+
+        $foreignComputer = $this->computerFor($theirs);
+        $foreignComputer->forceFill(['offline_notified_at' => now()])->save();
+
+        $foreignProject = $foreignComputer->project;
+        $foreignPackage = Package::factory()->create(['winget_id' => 'Foreign.App']);
+        SoftwarePolicy::factory()->create(['project_id' => $foreignProject->id, 'package_id' => $foreignPackage->id, 'mode' => 'enforce']);
+        DeploymentJob::factory()->failed()->create([
+            'computer_id' => $foreignComputer->id, 'package_id' => $foreignPackage->id, 'exit_code' => -1978335212,
+        ]);
+
+        $items = $this->service()->attentionItems($this->owner($mine));
+
+        $this->assertFalse($items->contains(fn (array $i) => $i['type'] === 'offline'));
+        $this->assertFalse($items->contains(fn (array $i) => $i['type'] === 'policy_failed'));
+    }
+
+    /** Severity sorts first (Critical, then Warning, then Info) regardless of source type. */
+    public function test_attention_items_are_sorted_by_severity(): void
+    {
+        $client = Client::factory()->create();
+        $offlineComputer = $this->computerFor($client);
+        $offlineComputer->forceFill(['offline_notified_at' => now()])->save(); // Warning
+
+        DeploymentJob::factory()->failed()->create([
+            'computer_id' => $this->computerFor($client)->id, 'exit_code' => -1978335212, // package-level -> Critical
+        ]);
+
+        $items = $this->service()->attentionItems($this->admin());
+        $severities = $items->pluck('severity')->all();
+
+        $this->assertSame('Critical', $severities[0]);
     }
 }

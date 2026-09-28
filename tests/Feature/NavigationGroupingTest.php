@@ -49,7 +49,7 @@ class NavigationGroupingTest extends TestCase
         $groups = $this->nav()->groups($this->userWithRole(RoleEnum::Admin));
 
         $this->assertSame(
-            [null, NavigationService::FLEET, NavigationService::SOFTWARE, NavigationService::INSIGHTS, NavigationService::ADMIN, NavigationService::BILLING],
+            [NavigationService::DASHBOARD, NavigationService::ASSETS, NavigationService::SOFTWARE, NavigationService::MANAGEMENT, NavigationService::ADMIN, NavigationService::REPORTS, NavigationService::BILLING],
             array_column($groups, 'label')
         );
     }
@@ -58,13 +58,11 @@ class NavigationGroupingTest extends TestCase
     {
         $byGroup = $this->labelsByGroup($this->userWithRole(RoleEnum::Admin));
 
-        $this->assertSame(['Dashboard'], $byGroup['']);
-        $this->assertSame(['Clients', project_terms(), 'Computers', 'Device Groups'], $byGroup[NavigationService::FLEET]);
-        $this->assertSame(
-            ['Packages', 'Deployments', 'Needs attention', 'Licenses', policy_terms(), browser_policy_terms()],
-            $byGroup[NavigationService::SOFTWARE]
-        );
-        $this->assertSame(['Reports', 'Activity'], $byGroup[NavigationService::INSIGHTS]);
+        $this->assertSame(['Dashboard', 'Needs attention'], $byGroup[NavigationService::DASHBOARD]);
+        $this->assertSame(['Clients', project_terms(), 'Computers', 'Device Groups'], $byGroup[NavigationService::ASSETS]);
+        $this->assertSame(['Packages', 'Deployments', 'Licenses'], $byGroup[NavigationService::SOFTWARE]);
+        $this->assertSame([policy_terms(), browser_policy_terms()], $byGroup[NavigationService::MANAGEMENT]);
+        $this->assertSame(['Reports', 'Audit Logs'], $byGroup[NavigationService::REPORTS]);
     }
 
     /** An empty section heading would be worse than no grouping at all. */
@@ -94,7 +92,7 @@ class NavigationGroupingTest extends TestCase
         $this->actingAs($this->userWithRole(RoleEnum::Admin))
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Fleet')
+            ->assertSee('Assets')
             ->assertSee('Software')
             ->assertSee('Administration');
     }
@@ -105,7 +103,7 @@ class NavigationGroupingTest extends TestCase
         $this->actingAs($this->userWithRole(RoleEnum::Admin))
             ->get(route('computers.index'))
             ->assertOk()
-            ->assertSee('data-nav-section="fleet" data-holds-current-page="true"', false)
+            ->assertSee('data-nav-section="assets" data-holds-current-page="true"', false)
             ->assertSee('data-nav-section="software" data-holds-current-page="false"', false);
     }
 
@@ -115,8 +113,11 @@ class NavigationGroupingTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk();
 
-        // Dashboard belongs to no section, so nothing is forced open.
-        foreach (['fleet', 'software', 'insights', 'administration'] as $slug) {
+        // Dashboard is itself a section now (it holds Needs attention too),
+        // so it is the one expected to hold the current page here.
+        $response->assertSee('data-nav-section="dashboard" data-holds-current-page="true"', false);
+
+        foreach (['assets', 'software', 'management', 'administration', 'reports'] as $slug) {
             $response->assertSee('data-nav-section="'.$slug.'" data-holds-current-page="false"', false);
         }
     }
@@ -138,7 +139,7 @@ class NavigationGroupingTest extends TestCase
         $this->assertStringContainsString("this.openSection === slug ? null : slug", $html);
 
         // ...and each section derives its state from it rather than its own.
-        foreach (['fleet', 'software', 'administration'] as $slug) {
+        foreach (['dashboard', 'assets', 'software', 'management', 'administration', 'reports'] as $slug) {
             $this->assertStringContainsString("this.openSection === '{$slug}'", $html);
             $this->assertStringNotContainsString("localStorage.getItem('nav-{$slug}')", $html);
         }
