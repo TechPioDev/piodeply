@@ -27,11 +27,13 @@
                             <th class="pd-th">Action</th>
                             <th class="pd-th">By</th>
                             <th class="pd-th">Subject</th>
-                            <th class="pd-th">Detail</th>
+                            <th class="pd-th">Previous value</th>
+                            <th class="pd-th">New value</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-slate-100">
                         @forelse ($activities as $activity)
+                            @php($values = $this->valuesFor($activity))
                             <tr>
                                 <td class="px-6 py-3 whitespace-nowrap text-slate-500 text-sm" title="{{ $activity->created_at }}">
                                     {{ $activity->created_at->format('Y-m-d H:i:s') }}
@@ -54,13 +56,15 @@
                                         —
                                     @endif
                                 </td>
-                                <td class="px-6 py-3 text-slate-500 text-xs font-mono max-w-md truncate"
-                                    title="{{ json_encode($activity->properties) }}">
-                                    {{ $activity->properties->isEmpty() ? '—' : json_encode($activity->properties) }}
+                                <td class="px-6 py-3 text-slate-500 text-xs font-mono max-w-xs truncate" title="{{ $values['previous'] }}">
+                                    {{ $values['previous'] ?? '—' }}
+                                </td>
+                                <td class="px-6 py-3 text-slate-500 text-xs font-mono max-w-xs truncate" title="{{ $values['new'] }}">
+                                    {{ $values['new'] ?? '—' }}
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="6" class="px-6 py-8 text-center text-slate-500">No activity recorded.</td></tr>
+                            <tr><td colspan="7" class="px-6 py-8 text-center text-slate-500">No activity recorded.</td></tr>
                         @endforelse
                     </tbody>
                 </table></div>
